@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Restaurant Management System
 
 Современная система управления рестораном на Vue 3 + Vite.
@@ -63,3 +64,7 @@ npm run preview
 - Адаптивный дизайн
 - Интерактивные графики и диаграммы
 - Облако тегов с анимацией
+=======
+# speech-analyzer-frontend
+FrontEnd for speech analyzer
+>>>>>>> 01270dfd951e49926d6de17c1d7227a6ebff2674
