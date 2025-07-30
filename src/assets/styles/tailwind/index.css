@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/* Импорт стилей для тултипов */
+@import "../tooltips.scss";
+
+/* Темная тема */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #1a1a1a;
+  color: #e5e5e5;
+}
+
+.dark .el-card {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #e5e5e5;
+}
+
+.dark .el-button {
+  background-color: #404040;
+  border-color: #525252;
+  color: #e5e5e5;
+}
+
+.dark .el-button:hover {
+  background-color: #525252;
+  border-color: #666666;
+}
+
+.dark .el-input__inner {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #e5e5e5;
+}
+
+.dark .el-input__inner:focus {
+  border-color: #8f18ad;
+}
+
+.dark .el-aside {
+  background-color: #2d2d2d;
+  border-right-color: #404040;
+}
+
+.dark .el-main {
+  background-color: #1a1a1a;
+}
+
+.dark .text-gray-600 {
+  color: #a3a3a3;
+}
+
+.dark .text-gray-500 {
+  color: #737373;
+}
+
+.dark .text-gray-400 {
+  color: #525252;
+}
+
+.dark .bg-gray-50 {
+  background-color: #2d2d2d;
+}
+
+.dark .bg-gray-100 {
+  background-color: #404040;
+}
+
+.dark .border-gray-200 {
+  border-color: #404040;
+}
+
