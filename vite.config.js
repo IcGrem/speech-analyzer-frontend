@@ -39,15 +39,7 @@ export default defineConfig({
 	},
 	// Оптимизация сборки
 	build: {
-		rollupOptions: {
-			output: {
-				manualChunks: {
-					'element-plus': ['element-plus'],
-					'chart': ['chart.js', 'vue-chartjs'],
-					'vendor': ['vue', 'vue-router', 'pinia']
-				}
-			}
-		},
+		minify: 'terser',
 		chunkSizeWarningLimit: 1000
 	},
 	// Настройки сервера разработки
