@@ -1,4 +1,4 @@
-name: Deploy Vue3 to VPS (Zero Downtime)
+name: Deploy Vue3 to VPS (Zero Downtime + Cache Clear)
 
 on:
   push:
@@ -48,4 +48,12 @@ jobs:
             mv /var/www/html /var/www/html_old || true &&
             mv /var/www/html_new /var/www/html &&
             rm -rf /var/www/html_old
+          "
+
+      # 7. Очистка кэша Nginx и перезагрузка
+      - name: Clear Nginx Cache
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            sudo rm -rf /var/cache/nginx/* &&
+            sudo nginx -s reload
           "
