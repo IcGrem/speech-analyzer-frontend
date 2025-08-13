@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Импорт стилей для тултипов */
-@import "../tooltips.scss";
+@import "../tooltips.css";
 
 /* Темная тема */
 .dark {

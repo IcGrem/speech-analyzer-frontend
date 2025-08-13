@@ -1,9 +1,69 @@
 <template>
   <PageWrapper title="Динамика метрик по дням">
+    
+    <div class="">
+      <el-row :gutter="10" class="py-4">
+        <el-col :span="8">
+          <el-select
+            v-model="selectedMetrics"
+            placeholder="Метрики"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            @change="onMetricsChange"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="item in metricsOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-col>
+        <el-col :span="8">
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            :disabled-date="disableExceptJuly2025"
+            range-separator="-"
+            start-placeholder="Дата начала"
+            end-placeholder="Дата окончания"
+            @change="onDateChange"
+            style="width: 100%;"
+          />
+        </el-col>
+        <el-col :span="4">
+          <el-button 
+            type="primary" 
+            :loading="loading" 
+            @click="refreshData"
+            icon="Refresh"
+            class="w-full"
+          >
+            Обновить
+          </el-button>
+        </el-col>
+      </el-row>
+    </div>
+
     <el-row class="pb-8" :gutter="20">
       <el-col :span="24">
-        <div class="w-full h-[600px] flex justify-center items-center">
-          <Line style="width: 100%;" :data="lineData" :options="chartOptions" />
+        <div v-if="loading" class="w-full h-[600px] flex justify-center items-center">
+          <LoadingIndicator />
+        </div>
+        <div v-else-if="error" class="w-full h-[600px] flex justify-center items-center">
+          <el-alert :title="error" type="error" :closable="false" show-icon>
+            <template #default>
+              <p class="mt-2">Попробуйте обновить данные или проверьте подключение к серверу.</p>
+            </template>
+          </el-alert>
+        </div>
+        <div v-else-if="lineData.labels?.length && lineData.datasets?.length" class="w-full h-[600px] flex justify-center items-center">
+          <Line style="width: 100%; height: 100%;" :data="lineData" :options="chartOptions" />
+        </div>
+        <div v-else class="w-full h-[600px] flex justify-center items-center">
+          <el-empty description="Нет данных для отображения графика" />
         </div>
       </el-col>
     </el-row>
@@ -11,38 +71,213 @@
 </template>
 
 <script setup>
+import { onMounted, computed, ref } from 'vue'
 import { Line } from 'vue-chartjs'
 import { Chart, registerables } from 'chart.js'
+import LoadingIndicator from '@/components/LoadingIndicator.vue'
+import { ElMessage } from 'element-plus'
+
+import { useOrganizationMetricsStore } from '@/store/organizationMetrics'
+import { useEmployeeStore } from '@/store/employees'
+import { storeToRefs } from 'pinia'
+
 Chart.register(...registerables)
 
-const chartOptions = {
+const orgMetricsStore = useOrganizationMetricsStore()
+const employeeStore = useEmployeeStore()
+
+const { metrics, loading, error } = storeToRefs(orgMetricsStore)
+const { fetchOrganizationDailyMetrics } = orgMetricsStore
+
+// Определяем organizationId из первого сотрудника (как в BarChart.vue)
+const organizationId = computed(() => {
+  if (employees.value && employees.value.length > 0) {
+    return employees.value[0].organization_id || null
+  }
+  return null
+})
+
+const employees = ref([])
+
+const metricsOptions = ref([
+  { value: 'greeting_farewell_score', label: 'Приветствие и прощание' },
+  { value: 'completeness_score', label: 'Полнота ответа' },
+  { value: 'tone_score', label: 'Тон общения' },
+  { value: 'openness_helpfulness_score', label: 'Открытость и готовность помочь' },
+  { value: 'listening_score', label: 'Умение слушать' },
+  { value: 'empathy_score', label: 'Эмпатия' },
+  { value: 'speech_quality_score', label: 'Грамотная речь' },
+  { value: 'response_time_score', label: 'Время ответа' },
+  { value: 'overall_score', label: 'Итоговая оценка' },
+])
+
+const selectedMetrics = ref([])
+const dateRange = ref('')
+
+// Вычисляем максимальное значение по всем датасетам из ответа сервера
+const yMax = computed(() => {
+  const m = metrics.value
+  if (!m || !Array.isArray(m.datasets) || m.datasets.length === 0) {
+    return 3
+  }
+  let maxValue = Number.NEGATIVE_INFINITY
+  for (const dataset of m.datasets) {
+    if (!Array.isArray(dataset.data)) continue
+    for (const raw of dataset.data) {
+      const num = typeof raw === 'number' ? raw : parseFloat(raw)
+      if (!Number.isNaN(num)) {
+        if (num > maxValue) maxValue = num
+      }
+    }
+  }
+  if (!Number.isFinite(maxValue)) return 3
+  return maxValue
+})
+
+// Округляем верхнюю границу до ближайшего шага 0.1 вверх
+const yMaxRounded = computed(() => Math.ceil((yMax.value + Number.EPSILON) * 10) / 10)
+
+const chartOptions = computed(() => ({
   responsive: true,
+  maintainAspectRatio: false,
   plugins: {
+    datalabels: {
+      display: false,
+    },
+    tooltip: {
+      mode: 'index',
+      intersect: false,
+      backgroundColor: '#fff',
+      titleColor: '#2e2e2e',
+      bodyColor: '#2e2e2e',
+      borderColor: '#402de6',
+      borderWidth: 2,
+      cornerRadius: 4,
+      padding: 12,
+      callbacks: {
+        label: function(context) {
+          return context.dataset.label + ': ' + context.parsed.y.toFixed(2)
+        }
+      }
+    },
     legend: {
       display: true,
-      position: 'right',
+      position: 'bottom',
+      labels: {
+        usePointStyle: true,
+        padding: 20,
+        font: { size: 12 },
+      },
+      align: 'start',
+      fullWidth: true,
     },
-    title: {
-      display: true,
-      text: '',
+  },
+  elements: {
+    point: {
+      radius: 5,
+      hoverRadius: 6,
+      borderWidth: 2,
+      backgroundColor: '#fff',
+    },
+    line: {
+      borderWidth: 3,
+      tension: 0.2,
     },
   },
   scales: {
+    x: {
+      grid: { color: 'rgba(0, 0, 0, 0.1)', lineWidth: 1 },
+      ticks: { font: { size: 11 } },
+    },
     y: {
-      beginAtZero: true,
+      beginAtZero: false,
+      max: yMaxRounded.value,
+      grid: { color: 'rgba(0, 0, 0, 0.1)', lineWidth: 1 },
+      ticks: { stepSize: 0.1, callback: (value) => Number(value).toFixed(1), font: { size: 18 } },
     },
   },
+  interaction: { mode: 'nearest', axis: 'x', intersect: false },
+}))
+
+const lineData = computed(() => {
+  const m = metrics.value
+  if (!m || !Array.isArray(m.labels) || !Array.isArray(m.datasets)) {
+    return { labels: [], datasets: [] }
+  }
+
+  const enriched = m.datasets.map((dataset) => ({
+    ...dataset,
+    borderColor: dataset.backgroundColor || '#409EFF',
+    backgroundColor: 'transparent',
+    tension: 0.2,
+    fill: false,
+    pointBackgroundColor: dataset.backgroundColor || '#409EFF',
+    pointBorderColor: '#fff',
+    pointHoverBackgroundColor: '#fff',
+    pointHoverBorderColor: dataset.backgroundColor || '#409EFF',
+  }))
+
+  return { labels: m.labels, datasets: enriched }
+})
+
+const loadOrganizationMetrics = async () => {
+  try {
+    if (!organizationId.value || !dateRange.value?.[0] || !dateRange.value?.[1]) {
+      return
+    }
+    // Требуем непустой список метрик
+    if (!selectedMetrics.value || selectedMetrics.value.length === 0) {
+      selectedMetrics.value = metricsOptions.value.map(m => m.value)
+    }
+    const params = {
+      organization_id: organizationId.value,
+      metric_types: selectedMetrics.value,
+      start_date: dateRange.value[0].toISOString(),
+      end_date: dateRange.value[1].toISOString(),
+    }
+    await fetchOrganizationDailyMetrics(params)
+  } catch (e) {
+    ElMessage.error('Ошибка при загрузке метрик организации')
+  }
 }
 
-
-const lineData = {
-  labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
-  datasets: [
-    { label: 'Продажи', data: [40, 20, 12, 39, 10], borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.2)', fill: true },
-    { label: 'Покупки', data: [10, 30, 15, 22, 18], borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.2)', fill: true },
-    { label: 'Прибыль', data: [20, 10, 5, 15, 8], borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.2)', fill: true }
-  ]
+const refreshData = async () => {
+  await loadOrganizationMetrics()
 }
+
+const onMetricsChange = () => {
+  loadOrganizationMetrics()
+}
+
+const onDateChange = () => {
+  loadOrganizationMetrics()
+}
+
+// Разрешаем выбирать только даты с 1 по 31 июля 2025 года
+const disableExceptJuly2025 = (date) => {
+  if (!(date instanceof Date)) return true
+  const year = date.getFullYear()
+  const month = date.getMonth() // 0 = Jan, 6 = Jul
+  const day = date.getDate()
+  return !(year === 2025 && month === 6 && day >= 1 && day <= 31)
+}
+
+onMounted(async () => {
+  try {
+    await employeeStore.fetchEmployees()
+    if (employeeStore.employees && employeeStore.employees.data) {
+      employees.value = employeeStore.employees.data
+      selectedMetrics.value = metricsOptions.value.map(m => m.value)
+      dateRange.value = [
+        new Date('2025-07-26T00:00:00'),
+        new Date('2025-07-31T23:59:59'),
+      ]
+      await loadOrganizationMetrics()
+    }
+  } catch (error) {
+    ElMessage.error('Ошибка инициализации данных организации')
+  }
+})
 </script>
 
 <style lang="scss" scoped>

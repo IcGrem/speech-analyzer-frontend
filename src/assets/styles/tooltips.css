@@ -1,0 +1,65 @@
+/* Стили для тултипов в приложении (CSS версия) */
+
+.menu-tooltip .el-tooltip__popper {
+  background: rgba(0, 0, 0, 0.9) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  backdrop-filter: blur(8px) !important;
+  animation: tooltipFadeIn 0.2s ease-out !important;
+}
+.menu-tooltip .el-popper__arrow::before {
+  border: none !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.info-tooltip .el-tooltip__popper {
+  background: rgba(59, 130, 246, 0.95) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3) !important;
+  animation: tooltipFadeIn 0.15s ease-out !important;
+}
+.info-tooltip .el-popper__arrow::before {
+  background: rgba(59, 130, 246, 0.95) !important;
+  border: none !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.warning-tooltip .el-tooltip__popper {
+  background: rgba(245, 158, 11, 0.95) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3) !important;
+  animation: tooltipFadeIn 0.15s ease-out !important;
+}
+.warning-tooltip .el-popper__arrow::before {
+  background: rgba(245, 158, 11, 0.95) !important;
+  border: none !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: scale(0.8) translateY(-5px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes tooltipFadeOut {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.8) translateY(-5px); }
+} 

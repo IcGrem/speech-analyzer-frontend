@@ -8,16 +8,15 @@ const instance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Включаем передачу кук в запросах
+  withCredentials: true
 })
 
 // Интерцептор запроса
 instance.interceptors.request.use(
   config => {
-    // Добавляем токен авторизации если есть
-    const token = localStorage.getItem('auth_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
+    // HttpOnly куки автоматически отправляются браузером
+    // Не нужно добавлять токен вручную
     return config
   },
   error => {

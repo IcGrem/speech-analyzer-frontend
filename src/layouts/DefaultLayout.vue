@@ -3,7 +3,7 @@
     <el-container class="h-full is-vertical">
       <AppHeader />
       <el-container>
-        <AppSidebar :menu="menu" @confirmExit="confirmExit = true" />
+        <AppSidebar :menu="menu" />
         <el-main class="transition-all duration-300">
           <router-view v-slot="{ Component, route }">
             <transition
@@ -18,7 +18,6 @@
       </el-container>
     </el-container>
   </div>
-  <DialogConfirm v-model="confirmExit" @confirm="logout" />
 </template>
 
 <script setup>
@@ -59,40 +58,6 @@ const menu = [
     customIcon: 'favorite'
   }
 ]
-
-const logout = async () => {
-  try {
-    // Очищаем данные авторизации через store
-    authStore.logout()
-    // Очищаем дополнительные данные из localStorage
-    localStorage.removeItem(STORAGE_KEYS.SIDEBAR_COLLAPSED)
-    localStorage.removeItem(STORAGE_KEYS.THEME)
-
-    // Закрываем диалог подтверждения
-    confirmExit.value = false
-
-    // Показываем уведомление об успешном выходе
-    ElNotification({
-      title: 'Успешно',
-      message: 'Вы успешно вышли из системы',
-      type: 'success',
-      duration: 3000
-    })
-
-    // Перенаправляем на страницу входа
-    await router.push('/login')
-
-  } catch (error) {
-    ElNotification({
-      title: 'Ошибка',
-      message: 'Произошла ошибка при выходе из системы',
-      type: 'error',
-      duration: 5000
-    })
-  }
-}
-
-const confirmExit = ref(false)
 </script>
 
 <style lang="scss" scoped>

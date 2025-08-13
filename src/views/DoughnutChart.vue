@@ -202,15 +202,14 @@ function handleDelete() {
 }
 function handleCancel() {
   // Здесь логика отмены (опционально)
-  console.log('Удаление отменено')
 }
 
 function handleWordHover(word, weight) {
-  console.log('Наведение на слово:', word, 'вес:', weight)
+  // no-op in production
 }
 
 function handleProgress(progress) {
-  console.log('Прогресс вычисления облака тегов:', progress)
+  // no-op in production
 }
 </script>
 

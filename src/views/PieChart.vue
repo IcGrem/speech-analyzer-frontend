@@ -207,12 +207,11 @@ const rotation = () => {
 }
 
 function handleWordClick(word, weight) {
-  console.log('Наведение на слово:', word, 'вес:', weight)
   wordText.value = word[0]
 }
 
 function handleProgress(progress) {
-  console.log('Прогресс вычисления облака тегов:', progress)
+  // no-op in production
 }
 </script>
 

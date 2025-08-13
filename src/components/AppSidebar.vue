@@ -82,6 +82,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/store/auth'
+import { ElMessageBox } from 'element-plus'
 
 const props = defineProps({
   menu: {
@@ -91,6 +94,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['confirmExit'])
+const router = useRouter()
+const authStore = useAuthStore()
 
 const isCollapsed = ref(false)
 
@@ -112,8 +117,31 @@ const toggleCollapse = () => {
   localStorage.setItem('sidebarCollapsed', JSON.stringify(isCollapsed.value))
 }
 
-const confirmExit = () => {
-  emit('confirmExit')
+const confirmExit = async () => {
+  try {
+    await ElMessageBox.confirm(
+      'Вы уверены, что хотите выйти из системы?',
+      'Подтверждение выхода',
+      {
+        confirmButtonText: 'Выйти',
+        cancelButtonText: 'Отмена',
+        type: 'warning',
+      }
+    )
+    
+    // Выполняем логаут
+    await authStore.logout()
+    
+    // Перенаправляем на страницу логина
+    await router.push('/login')
+    
+    emit('confirmExit')
+  } catch (error) {
+    if (error !== 'cancel') {
+      // Покажем дружелюбное сообщение, не логируя в консоль
+      ElMessageBox.alert('Ошибка при выходе', 'Ошибка', { type: 'error' })
+    }
+  }
 }
 </script>
 

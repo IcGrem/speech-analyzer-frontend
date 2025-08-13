@@ -1,88 +1,127 @@
 <template>
   <div class="w-[400px] shadow-md rounded-2xl bg-white flex items-center flex-col p-6">
-    <p class="text-2xl font-medium mb-3">Авторизация</p>
+    <h1 class="text-2xl font-medium mb-6 text-center">Авторизация</h1>
+    
     <el-form
-      autocomplete="off"
+      ref="formRef"
+      :model="formData"
       :rules="rules"
-      class="form__login flex flex-col gap-4"
+      class="w-full"
+      @submit.prevent="handleSubmit"
     >
-      <div>
-        <p>Логин</p>
+      <el-form-item prop="username" class="mb-4">
         <el-input
-          :class="v.data.login.$error && (v.data.login.$dirty || triedSubmit) ? 'input__error' : ''"
+          v-model="formData.username"
+          placeholder="Введите логин"
           size="large"
-          v-model="v.data.login.$model"
-          :errors="v.data.login.$error"
-          @blur="v.data.login.$touch"
-          @input="v.data.login.$touch"
-          autocomplete="off"
-        />
-        <p class="form__error" v-for="error in v.data.login.$errors" v-if="v.data.login.$dirty || triedSubmit">{{ error.$message }}</p>
-      </div>
-      <div>
-        <p>Пароль</p>
+          :disabled="authStore.loading"
+          autocomplete="username"
+          @keyup.enter="handleSubmit"
+        >
+          <template #prefix>
+            <el-icon><User /></el-icon>
+          </template>
+        </el-input>
+      </el-form-item>
+
+      <el-form-item prop="password" class="mb-6">
         <el-input
+          v-model="formData.password"
           type="password"
-          show-password
-          :class="v.data.password.$error && (v.data.password.$dirty || triedSubmit) ? 'input__error' : ''"
+          placeholder="Введите пароль"
           size="large"
-          v-model="v.data.password.$model"
-          :errors="v.data.password.$error"
-          @blur="v.data.password.$touch"
-          @input="v.data.password.$touch"
-          autocomplete="off"
-        />
-        <p class="form__error" v-for="error in v.data.password.$errors" v-if="v.data.password.$dirty || triedSubmit">{{ error.$message }}</p>
+          show-password
+          :disabled="authStore.loading"
+          autocomplete="current-password"
+          @keyup.enter="handleSubmit"
+        >
+          <template #prefix>
+            <el-icon><Lock /></el-icon>
+          </template>
+        </el-input>
+      </el-form-item>
+
+      <div class="mt-6">
+        <el-button
+          type="primary"
+          size="large"
+          class="w-full"
+          :loading="authStore.loading"
+          :disabled="isLocked || authStore.loading"
+          @click="handleSubmit"
+        >
+          <template v-if="isLocked">
+            Заблокировано ({{ lockSeconds }}с)
+          </template>
+          <template v-else-if="authStore.loading">
+            Вход...
+          </template>
+          <template v-else>
+            Войти
+          </template>
+        </el-button>
       </div>
-      <el-button :disabled="(triedSubmit && v.$invalid) || isLocked" @click="submit" type="primary" class="w-full mt-4" size="large">
-        <template v-if="isLocked">Заблокировано ({{ lockSeconds }})</template>
-        <template v-else>Войти</template>
-      </el-button>
     </el-form>
+
+    <!-- Отображение ошибок -->
+    <div v-if="authStore.error" class="w-full mt-4">
+      <el-alert
+        :title="authStore.error"
+        type="error"
+        show-icon
+        :closable="false"
+      />
+    </div>
   </div>
 </template>
 
 <script setup>
-import useVuelidate from '@vuelidate/core'
+import { ref, reactive, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElNotification } from 'element-plus';
-import {helpers, email, required} from '@vuelidate/validators'
-import { reactive, ref, computed } from 'vue'
+import { ElNotification, ElMessage } from 'element-plus'
+import { User, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const formRef = ref()
 
-const valid = ref(true)
-const data = reactive({
-  login: '',
+// Форма данных
+const formData = reactive({
+  username: '',
   password: ''
 })
-const triedSubmit = ref(false)
-const rules = computed(() => ({
-  data: {
-    login: {
-      email: helpers.withMessage('Вы ввели неверный email', email),
-      required : helpers.withMessage('Это поле обязательное', required),
-    },
-    password:{
-      required : helpers.withMessage('Это поле обязательное', required),
-    },
-  }
-}))
-const v = useVuelidate(rules,  {data} )
 
-// Брутфорс защита
+// Правила валидации
+const rules = {
+  username: [
+    { required: true, message: 'Введите логин', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: 'Введите пароль', trigger: 'blur' },
+    { min: 3, message: 'Пароль должен содержать минимум 3 символа', trigger: 'blur' }
+  ]
+}
+
+// Защита от брутфорса
 const MAX_ATTEMPTS = 5
-const LOCK_TIME = 30 // секунд
+const LOCK_TIME = 30
 const attempts = ref(0)
 const isLocked = ref(false)
 const lockSeconds = ref(LOCK_TIME)
 let lockTimer = null
 
-function startLock() {
+// Очистка таймера при размонтировании компонента
+onUnmounted(() => {
+  if (lockTimer) {
+    clearInterval(lockTimer)
+  }
+})
+
+const startLock = () => {
   isLocked.value = true
   lockSeconds.value = LOCK_TIME
+  
   lockTimer = setInterval(() => {
     lockSeconds.value--
     if (lockSeconds.value <= 0) {
@@ -93,107 +132,93 @@ function startLock() {
   }, 1000)
 }
 
-const submit = async () => {
-  triedSubmit.value = true
-  valid.value = await v.value.$validate()
-  if (valid.value) {
-    // Здесь должна быть логика авторизации
-    // Если авторизация неуспешна, увеличиваем attempts
-    // Пример:
-    // const success = await loginApi(data.login, data.password)
-    // if (!success) { ... }
-    // Для примера считаем, что всегда ошибка:
-    // attempts.value++
-    // if (attempts.value >= MAX_ATTEMPTS) {
-    //   startLock()
-    // }
-    try {
-      // Имитация API запроса авторизации
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Создаем фейковые данные пользователя
-      const userData = {
-        id: 1,
-        name: data.login.split('@')[0],
-        email: data.login,
-        role: 'admin'
-      }
-      
-      const token = 'fake-jwt-token-' + Date.now()
-      
-      // Сохраняем данные через auth store
-      authStore.login(userData, token)
-      
+const handleSubmit = async () => {
+  if (!formRef.value) return
+
+  try {
+    // Валидация формы
+    const valid = await formRef.value.validate()
+    if (!valid) return
+
+    // Очищаем предыдущие ошибки
+    authStore.clearError()
+
+    // Выполняем авторизацию
+    const result = await authStore.login({
+      username: formData.username,
+      password: formData.password
+    })
+
+    if (result?.success) {
       ElNotification({
         title: 'Успешно',
-        message: 'Вы успешно вошли в систему',
+        message: `Добро пожаловать, ${authStore.userName}!`,
         type: 'success',
         duration: 3000
       })
       
-      await router.push({name: 'Home'})
-    } catch (error) {
-      console.error('Ошибка авторизации:', error)
-      attempts.value++
-      if (attempts.value >= MAX_ATTEMPTS) {
-        startLock()
-      }
+      // Сброс попыток при успешной авторизации
+      attempts.value = 0
       
-      ElNotification({
-        title: 'Ошибка',
-        message: 'Неверный логин или пароль',
-        type: 'error',
-        duration: 5000
-      })
+      // Проверяем, есть ли сохраненный маршрут для редиректа
+      const redirectPath = sessionStorage.getItem('redirectAfterLogin')
+      if (redirectPath) {
+        sessionStorage.removeItem('redirectAfterLogin')
+        await router.push(redirectPath)
+      } else {
+        // Переход на главную страницу
+        await router.push('/')
+      }
     }
-  } else {
-    ElNotification({
-      title: 'Ошибка',
-      message: 'Пожалуйста, исправьте ошибки в форме',
-      type: 'error',
-    })
+  } catch (error) {
+    attempts.value++
+    
+    // Показываем ошибку пользователю
+    ElMessage.error(
+      error.response?.data?.detail || 
+      'Неверный логин или пароль'
+    )
+
+    // Блокировка при превышении попыток
+    if (attempts.value >= MAX_ATTEMPTS) {
+      startLock()
+      ElMessage.warning(
+        `Слишком много попыток входа. Попробуйте через ${LOCK_TIME} секунд.`
+      )
+    }
   }
 }
 </script>
 
 <style lang="scss" scoped>
-.form__login {
+.el-form {
   width: 100%;
-  .el-form-item  {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    & > .el-form-item__label {
-      width: 100%;
-      justify-content: flex-start;
-      text-align: left;
+  
+  .el-form-item {
+    margin-bottom: 16px;
+    
+    &:last-child {
+      margin-bottom: 0;
     }
-    .el-form-item__label-wrapper {
-      width: 100%;
-      margin: 0 !important;
-    }
-  }
-
-  .el-form-item__content {
-    width: 100%;
   }
 }
+
 .el-input {
-  ::v-deep .el-input__wrapper {
+  :deep(.el-input__wrapper) {
     box-shadow: none;
     border: 1px solid #dcdfe6;
+    transition: border-color 0.2s;
+    border-radius: 8px;
+    
     &.is-focus {
       border-color: var(--el-color-primary);
     }
   }
-  &.input__error {
-    ::v-deep .el-input__wrapper {
-      box-shadow: none;
-      border-color: var(--el-color-danger);
-    }
-  }
-  & + .form__error {
-    color: var(--el-color-danger);
-  }
+}
+
+.el-button {
+  height: 44px;
+  font-weight: 500;
+  border-radius: 8px;
 }
 </style>

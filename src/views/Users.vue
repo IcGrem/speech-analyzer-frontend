@@ -70,12 +70,8 @@ const loadUsersApi = async () => {
 
 const { data: users, loading, error, load: loadUsers } = useData(loadUsersApi, {
   autoLoad: true,
-  onSuccess: (data) => {
-    console.log('Пользователи загружены:', data)
-  },
-  onError: (error) => {
-    console.error('Ошибка загрузки пользователей:', error)
-  }
+  onSuccess: () => {},
+  onError: () => {}
 })
 </script>
 

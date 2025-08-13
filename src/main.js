@@ -11,7 +11,7 @@ import i18n from './i18n'
 const pinia = createPinia()
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import VueWordCloud from 'vuewordcloud';
-
+import { useAuthStore } from '@/store/auth'
 
 const app = createApp(App)
 app.component('VueWordCloud', VueWordCloud)
@@ -33,4 +33,8 @@ if (savedLang) {
   localStorage.setItem('language', 'ru')
 }
 
-app.mount('#app')
+// Дожидаемся инициализации авторизации, чтобы избежать мигания кнопки "Войти"
+const authStore = useAuthStore()
+authStore.initializeAuth().finally(() => {
+  app.mount('#app')
+})

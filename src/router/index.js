@@ -22,6 +22,15 @@ const routes = [
         }
       },
       {
+        path: '/profile',
+        name: 'Profile',
+        component: () => import('@/views/Profile.vue'),
+        meta: { 
+          transition: 'slide-left',
+          requiresAuth: true
+        }
+      },
+      {
         path: '/about',
         name: 'About',
         component: () => import('@/views/About.vue'),
@@ -104,7 +113,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
 })
 

@@ -7,7 +7,10 @@
 export function loggerMiddleware(to, from, next) {
   const timestamp = new Date().toLocaleTimeString()
   
-  console.log(`📊 [${timestamp}] Навигация: ${from.path} → ${to.path}`)
+  if (import.meta?.env?.DEV) {
+    // eslint-disable-next-line no-console
+    console.log(`📊 [${timestamp}] Навигация: ${from.path} → ${to.path}`)
+  }
   
   // Можно отправить аналитику
   if (window.gtag) {
