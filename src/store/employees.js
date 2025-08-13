@@ -26,7 +26,7 @@ export const useEmployeeStore = defineStore('employee', () => {
       employees.value = await getEmployees()
     } catch (err) {
       error.value = err.response?.data?.message || err.message
-      ErrorHandler.handleApiError(err, 'Загрузка сотрудников')
+      ErrorHandler.handleApiError(err, 'Загрузка сотрудников', { notify: false })
       throw err
     } finally {
       loading.value = false

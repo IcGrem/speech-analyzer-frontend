@@ -22,7 +22,7 @@ export const useOrganizationMetricsStore = defineStore('organizationMetrics', ()
 			}
 		} catch (err) {
 			error.value = err.response?.data?.message || err.message
-			ErrorHandler.handleApiError(err, 'Загрузка дневных метрик организации')
+			ErrorHandler.handleApiError(err, 'Загрузка дневных метрик организации', { notify: false })
 			metrics.value = { labels: [], datasets: [] }
 			throw err
 		} finally {
@@ -47,7 +47,7 @@ export const useOrganizationMetricsStore = defineStore('organizationMetrics', ()
 			}
 		} catch (err) {
 			error.value = err.response?.data?.message || err.message
-			ErrorHandler.handleApiError(err, 'Загрузка средних метрик организации')
+			ErrorHandler.handleApiError(err, 'Загрузка средних метрик организации', { notify: false })
 			averageScores.value = null
 			throw err
 		} finally {

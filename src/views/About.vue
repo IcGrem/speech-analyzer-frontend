@@ -89,7 +89,6 @@ const employeeStore = useEmployeeStore()
 const { metrics, loading, error } = storeToRefs(orgMetricsStore)
 const { fetchOrganizationDailyMetrics } = orgMetricsStore
 
-// Определяем organizationId из первого сотрудника (как в BarChart.vue)
 const organizationId = computed(() => {
   if (employees.value && employees.value.length > 0) {
     return employees.value[0].organization_id || null
@@ -114,7 +113,6 @@ const metricsOptions = ref([
 const selectedMetrics = ref([])
 const dateRange = ref('')
 
-// Вычисляем максимальное значение по всем датасетам из ответа сервера
 const yMax = computed(() => {
   const m = metrics.value
   if (!m || !Array.isArray(m.datasets) || m.datasets.length === 0) {
@@ -134,16 +132,13 @@ const yMax = computed(() => {
   return maxValue
 })
 
-// Округляем верхнюю границу до ближайшего шага 0.1 вверх
 const yMaxRounded = computed(() => Math.ceil((yMax.value + Number.EPSILON) * 10) / 10)
 
 const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    datalabels: {
-      display: false,
-    },
+    datalabels: { display: false },
     tooltip: {
       mode: 'index',
       intersect: false,
@@ -163,32 +158,17 @@ const chartOptions = computed(() => ({
     legend: {
       display: true,
       position: 'bottom',
-      labels: {
-        usePointStyle: true,
-        padding: 20,
-        font: { size: 12 },
-      },
+      labels: { usePointStyle: true, padding: 20, font: { size: 12 } },
       align: 'start',
       fullWidth: true,
     },
   },
   elements: {
-    point: {
-      radius: 5,
-      hoverRadius: 6,
-      borderWidth: 2,
-      backgroundColor: '#fff',
-    },
-    line: {
-      borderWidth: 3,
-      tension: 0.2,
-    },
+    point: { radius: 5, hoverRadius: 6, borderWidth: 2, backgroundColor: '#fff' },
+    line: { borderWidth: 3, tension: 0.2 },
   },
   scales: {
-    x: {
-      grid: { color: 'rgba(0, 0, 0, 0.1)', lineWidth: 1 },
-      ticks: { font: { size: 11 } },
-    },
+    x: { grid: { color: 'rgba(0, 0, 0, 0.1)', lineWidth: 1 }, ticks: { font: { size: 11 } } },
     y: {
       beginAtZero: false,
       max: yMaxRounded.value,
@@ -199,23 +179,47 @@ const chartOptions = computed(() => ({
   interaction: { mode: 'nearest', axis: 'x', intersect: false },
 }))
 
+function toRgba(color, alpha = 0.15) {
+  if (typeof color !== 'string') return `rgba(99,102,241,${alpha})`
+  const hex = color.trim()
+  if (hex.startsWith('#')) {
+    const clean = hex.replace('#', '')
+    if (clean.length === 3) {
+      const r = parseInt(clean[0] + clean[0], 16)
+      const g = parseInt(clean[1] + clean[1], 16)
+      const b = parseInt(clean[2] + clean[2], 16)
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`
+    }
+    if (clean.length === 6 || clean.length === 8) {
+      const r = parseInt(clean.slice(0, 2), 16)
+      const g = parseInt(clean.slice(2, 4), 16)
+      const b = parseInt(clean.slice(4, 6), 16)
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`
+    }
+  }
+  return color
+}
+
 const lineData = computed(() => {
   const m = metrics.value
   if (!m || !Array.isArray(m.labels) || !Array.isArray(m.datasets)) {
     return { labels: [], datasets: [] }
   }
 
-  const enriched = m.datasets.map((dataset) => ({
-    ...dataset,
-    borderColor: dataset.backgroundColor || '#409EFF',
-    backgroundColor: 'transparent',
-    tension: 0.2,
-    fill: false,
-    pointBackgroundColor: dataset.backgroundColor || '#409EFF',
-    pointBorderColor: '#fff',
-    pointHoverBackgroundColor: '#fff',
-    pointHoverBorderColor: dataset.backgroundColor || '#409EFF',
-  }))
+  const enriched = m.datasets.map((dataset) => {
+    const base = dataset.backgroundColor || '#409EFF'
+    return {
+      ...dataset,
+      borderColor: base,
+      backgroundColor: toRgba(base, 0.15),
+      tension: 0.2,
+      fill: true,
+      pointBackgroundColor: base,
+      pointBorderColor: '#fff',
+      pointHoverBackgroundColor: '#fff',
+      pointHoverBorderColor: base,
+    }
+  })
 
   return { labels: m.labels, datasets: enriched }
 })
@@ -225,7 +229,6 @@ const loadOrganizationMetrics = async () => {
     if (!organizationId.value || !dateRange.value?.[0] || !dateRange.value?.[1]) {
       return
     }
-    // Требуем непустой список метрик
     if (!selectedMetrics.value || selectedMetrics.value.length === 0) {
       selectedMetrics.value = metricsOptions.value.map(m => m.value)
     }
@@ -253,11 +256,10 @@ const onDateChange = () => {
   loadOrganizationMetrics()
 }
 
-// Разрешаем выбирать только даты с 1 по 31 июля 2025 года
 const disableExceptJuly2025 = (date) => {
   if (!(date instanceof Date)) return true
   const year = date.getFullYear()
-  const month = date.getMonth() // 0 = Jan, 6 = Jul
+  const month = date.getMonth()
   const day = date.getDate()
   return !(year === 2025 && month === 6 && day >= 1 && day <= 31)
 }

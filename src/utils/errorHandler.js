@@ -7,7 +7,7 @@ export class ErrorHandler {
   /**
    * Обработка ошибок API
    */
-  static handleApiError(error, context = '') {
+  static handleApiError(error, context = '', options = { notify: true }) {
     console.error(`API Error in ${context}:`, error)
     
     let message = 'Произошла ошибка при выполнении запроса'
@@ -42,39 +42,53 @@ export class ErrorHandler {
       message = error.message || 'Неизвестная ошибка'
     }
     
-    ElNotification({
-      title: 'Ошибка',
-      message,
-      type: 'error',
-      duration: 5000
-    })
+    if (options?.notify) {
+      ElNotification({
+        title: 'Ошибка',
+        message,
+        type: 'error',
+        duration: 5000
+      })
+    }
+
+    return message
   }
   
   /**
    * Обработка ошибок валидации
    */
-  static handleValidationError(errors) {
+  static handleValidationError(errors, options = { notify: true }) {
     const messages = Object.values(errors).flat()
+    const message = messages.join(', ')
     
-    ElNotification({
-      title: 'Ошибки валидации',
-      message: messages.join(', '),
-      type: 'warning',
-      duration: 4000
-    })
+    if (options?.notify) {
+      ElNotification({
+        title: 'Ошибки валидации',
+        message,
+        type: 'warning',
+        duration: 4000
+      })
+    }
+
+    return message
   }
   
   /**
    * Обработка общих ошибок
    */
-  static handleGeneralError(error, title = 'Ошибка') {
+  static handleGeneralError(error, title = 'Ошибка', options = { notify: true }) {
     console.error('General Error:', error)
+    const message = error.message || 'Произошла неизвестная ошибка'
     
-    ElNotification({
-      title,
-      message: error.message || 'Произошла неизвестная ошибка',
-      type: 'error',
-      duration: 5000
-    })
+    if (options?.notify) {
+      ElNotification({
+        title,
+        message,
+        type: 'error',
+        duration: 5000
+      })
+    }
+
+    return message
   }
 } 
