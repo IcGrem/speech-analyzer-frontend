@@ -1,0 +1,51 @@
+name: Deploy Vue3 to VPS (Zero Downtime)
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Клонируем репозиторий
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Ставим Node.js 22.16.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0
+
+      # 3. Устанавливаем зависимости
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Собираем проект Vue 3
+      - name: Build project
+        run: npm run build
+
+      # 5. Настраиваем SSH-доступ
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      # 6. Деплой на VPS без простоя
+      - name: Deploy to VPS
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            rm -rf /var/www/html_new &&
+            mkdir -p /var/www/html_new
+          "
+          rsync -avz --delete ./dist/ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/var/www/html_new/
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+            mv /var/www/html /var/www/html_old || true &&
+            mv /var/www/html_new /var/www/html &&
+            rm -rf /var/www/html_old
+          "
