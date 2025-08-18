@@ -47,7 +47,7 @@
         <el-alert :title="employeeAverageError" type="error" :closable="false" show-icon />
       </div>
       <div v-else-if="barData.labels?.length && barData.datasets?.length" class="w-full h-[500px]">
-        <Bar :data="barData" :options="chartOptions" />
+                                                                                                   <Bar :data="barData" :options="chartOptions" />
       </div>
       <div v-else class="w-full h-[500px] flex justify-center items-center">
         <el-empty description="Нет данных для отображения графика" />
@@ -128,39 +128,30 @@ const employeeNames = computed(() => {
   return m.datasets.map(d => d.label).filter(Boolean)
 })
 
-// Динамический максимум суммы сегментов на категорию (для стека)
-const stackedMax = computed(() => {
-  const m = (employeeAverageMetrics && employeeAverageMetrics.value) ? employeeAverageMetrics.value : { labels: [], datasets: [] }
-  if (!m || !Array.isArray(m.labels) || !Array.isArray(m.datasets) || m.datasets.length === 0) return 5
-  const sums = Array(m.labels.length).fill(0)
-  for (const ds of m.datasets) {
-    if (!Array.isArray(ds.data)) continue
-    // Фильтруем по выбранным сотрудникам (если выбраны)
-    if (selectedEmployees.value && selectedEmployees.value.length > 0 && ds.label && !selectedEmployees.value.includes(ds.label)) {
-      continue
-    }
-    ds.data.forEach((v, i) => {
-      const num = typeof v === 'number' ? v : parseFloat(v)
-      if (!Number.isNaN(num)) sums[i] += num
-    })
-  }
-  const max = Math.max(...sums)
-  return Math.ceil((max + Number.EPSILON) * 10) / 10
-})
 
 const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   indexAxis: 'x',
   plugins: {
-    legend: { display: true, position: 'bottom' },
+    legend: { display: true, position: 'bottom', labels: { filter: (legendItem, data) => {
+        const label = legendItem.text
+        const firstIdx = data.datasets.findIndex(d => d.label === label)
+        return legendItem.datasetIndex === firstIdx
+      } } },
     title: { display: true, text: '' },
     tooltip: {
       enabled: true,
       mode: 'nearest',
       intersect: true,
       callbacks: {
-        label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)}`,
+        label: (ctx) => {
+          const rawArr = ctx.dataset && Array.isArray(ctx.dataset.rawData) ? ctx.dataset.rawData : null
+          const raw = rawArr ? rawArr[ctx.dataIndex] : ctx.raw
+          const num = Number(raw)
+          const txt = Number.isFinite(num) ? num.toFixed(1) : raw
+          return `${ctx.dataset.label}: ${txt}`
+        },
       }
     }
   },
@@ -169,7 +160,6 @@ const chartOptions = computed(() => ({
     y: {
       stacked: true,
       beginAtZero: true,
-      suggestedMax: stackedMax.value,
       ticks: { display: false },
       grid: { drawTicks: false }
     },
@@ -181,30 +171,42 @@ const chartOptions = computed(() => ({
       categoryPercentage: 0.9,
       borderSkipped: false,
       borderRadius: 2,
+      borderWidth: 2,
+      borderColor: '#ffffff',
     }
   }
 }))
 
+
 const barData = computed(() => {
-  const m = (employeeAverageMetrics && employeeAverageMetrics.value) ? employeeAverageMetrics.value : { labels: [], datasets: [] }
-  if (!m || !Array.isArray(m.labels) || !Array.isArray(m.datasets)) {
-    return { labels: [], datasets: [] }
+  const src = employeeAverageMetrics.value || { labels: [], datasets: [] }
+  const labels = Array.isArray(src.labels) ? src.labels : []
+  let datasets = Array.isArray(src.datasets) ? src.datasets : []
+
+  if (selectedEmployees.value && selectedEmployees.value.length > 0) {
+    datasets = datasets.filter(ds => ds.label && selectedEmployees.value.includes(ds.label))
   }
 
-  const filteredDatasets = m.datasets.filter(ds => {
-    if (!selectedEmployees.value || selectedEmployees.value.length === 0) return true
-    return ds.label && selectedEmployees.value.includes(ds.label)
-  }).map(ds => ({
-    ...ds,
-    backgroundColor: ds.backgroundColor || '#409EFF',
-    borderColor: ds.borderColor || ds.backgroundColor || '#409EFF',
-    borderWidth: 0,
-  }))
+  const sums = labels.map((_, idx) => datasets.reduce((acc, ds) => acc + (Number(ds.data?.[idx]) || 0), 0))
 
-  return {
-    labels: m.labels,
-    datasets: filteredDatasets
-  }
+  datasets = datasets.map(ds => {
+    const rawData = Array.isArray(ds.data) ? ds.data : labels.map(() => 0)
+    const normalized = rawData.map((v, idx) => {
+      const num = Number(v) || 0
+      const sum = sums[idx] || 1
+      return sum > 0 ? (num / sum) * 100 : 0
+    })
+    return {
+      ...ds,
+      data: normalized,
+      rawData,
+      backgroundColor: ds.backgroundColor || '#6366F1',
+      borderColor: ds.borderColor || '#ffffff',
+      borderWidth: 2,
+    }
+  })
+
+  return { labels, datasets }
 })
 
 // Ограничение выбора дат: только 01.07.2025 — 31.07.2025
