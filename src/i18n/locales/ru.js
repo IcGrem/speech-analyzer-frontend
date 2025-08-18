@@ -13,7 +13,10 @@ export default {
     loading: 'Загрузка...',
     error: 'Ошибка',
     success: 'Успешно',
-    empty: 'Список пуст'
+    empty: 'Список пуст',
+    apply: 'Применить',
+    clear: 'Очистить',
+    view: 'Просмотр'
   },
 
   // Навигация
@@ -48,7 +51,16 @@ export default {
       metrics: 'Оценки по всем метрикам',
       topWords: 'Топ 5 слов',
       dictionary: 'Факт наличия в словарях',
-      link: 'Ссылка'
+      link: 'Ссылка',
+      conversationType: 'Тип диалога',
+      dateRange: 'Диапазон дат',
+      startDate: 'Дата начала',
+      endDate: 'Дата окончания',
+      employees: 'Сотрудники',
+      sortBy: 'Сортировка по',
+      selectDate: 'Выберите дату',
+      selectDateRange: 'Выберите диапазон дат',
+      selectEmployees: 'Выберите сотрудников'
     }
   },
 

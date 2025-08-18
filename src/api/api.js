@@ -15,8 +15,12 @@ const instance = axios.create({
 // Интерцептор запроса
 instance.interceptors.request.use(
   config => {
-    // HttpOnly куки автоматически отправляются браузером
-    // Не нужно добавлять токен вручную
+    // Добавляем токен из sessionStorage, если есть
+    const token = sessionStorage.getItem('accessToken')
+    if (token) {
+      config.headers = config.headers || {}
+      config.headers['Authorization'] = token
+    }
     return config
   },
   error => {

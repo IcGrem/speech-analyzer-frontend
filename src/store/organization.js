@@ -22,7 +22,12 @@ export const useOrganizationStore = defineStore('organization', () => {
     try {
       loading.value = true
       error.value = null
-      organizations.value = await getOrganizations()
+      const response = await getOrganizations()
+      if (response && response.data) {
+        organizations.value = Array.isArray(response.data) ? response.data : (response.data.data || [])
+      } else {
+        organizations.value = []
+      }
     } catch (err) {
       error.value = err.response?.data?.message || err.message
       ErrorHandler.handleApiError(err, 'Загрузка организаций', { notify: false })

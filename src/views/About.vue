@@ -71,34 +71,27 @@
 </template>
 
 <script setup>
-import { onMounted, computed, ref } from 'vue'
+import { onMounted, computed, ref, watch } from 'vue'
 import { Line } from 'vue-chartjs'
-import { Chart, registerables } from 'chart.js'
 import LoadingIndicator from '@/components/LoadingIndicator.vue'
 import { ElMessage } from 'element-plus'
 
 import { useOrganizationMetricsStore } from '@/store/organizationMetrics'
-import { useEmployeeStore } from '@/store/employees'
+import { useAuthStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
-
-Chart.register(...registerables)
+import { toLocalISOString } from '@/utils'
 
 const orgMetricsStore = useOrganizationMetricsStore()
-const employeeStore = useEmployeeStore()
+const authStore = useAuthStore()
 
 const { metrics, loading, error } = storeToRefs(orgMetricsStore)
 const { fetchOrganizationDailyMetrics } = orgMetricsStore
+const { organizationId: orgIdRef, user } = storeToRefs(authStore)
 
-const organizationId = computed(() => {
-  if (employees.value && employees.value.length > 0) {
-    return employees.value[0].organization_id || null
-  }
-  return null
-})
-
-const employees = ref([])
+const organizationId = computed(() => orgIdRef.value || user.value?.organization_id || null)
 
 const metricsOptions = ref([
+  { value: 'overall_score', label: 'Итоговая оценка' },
   { value: 'greeting_farewell_score', label: 'Приветствие и прощание' },
   { value: 'completeness_score', label: 'Полнота ответа' },
   { value: 'tone_score', label: 'Тон общения' },
@@ -107,11 +100,10 @@ const metricsOptions = ref([
   { value: 'empathy_score', label: 'Эмпатия' },
   { value: 'speech_quality_score', label: 'Грамотная речь' },
   { value: 'response_time_score', label: 'Время ответа' },
-  { value: 'overall_score', label: 'Итоговая оценка' },
 ])
 
 const selectedMetrics = ref([])
-const dateRange = ref('')
+const dateRange = ref(null)
 
 const yMax = computed(() => {
   const m = metrics.value
@@ -235,8 +227,8 @@ const loadOrganizationMetrics = async () => {
     const params = {
       organization_id: organizationId.value,
       metric_types: selectedMetrics.value,
-      start_date: dateRange.value[0].toISOString(),
-      end_date: dateRange.value[1].toISOString(),
+      start_date: toLocalISOString(dateRange.value[0]),
+      end_date: toLocalISOString(dateRange.value[1]),
     }
     await fetchOrganizationDailyMetrics(params)
   } catch (e) {
@@ -266,19 +258,21 @@ const disableExceptJuly2025 = (date) => {
 
 onMounted(async () => {
   try {
-    await employeeStore.fetchEmployees()
-    if (employeeStore.employees && employeeStore.employees.data) {
-      employees.value = employeeStore.employees.data
-      selectedMetrics.value = metricsOptions.value.map(m => m.value)
-      dateRange.value = [
-        new Date('2025-07-26T00:00:00'),
-        new Date('2025-07-31T23:59:59'),
-      ]
-      await loadOrganizationMetrics()
-    }
+    // Значения по умолчанию
+    selectedMetrics.value = metricsOptions.value.map(m => m.value)
+    dateRange.value = [
+      new Date('2025-07-26T00:00:00'),
+      new Date('2025-07-31T23:59:59'),
+    ]
+    await loadOrganizationMetrics()
   } catch (error) {
     ElMessage.error('Ошибка инициализации данных организации')
   }
+})
+
+watch(organizationId, async (id, prev) => {
+  if (!id || id === prev) return
+  await loadOrganizationMetrics()
 })
 </script>
 

@@ -54,4 +54,14 @@ export const APP_CONFIG = {
   DEFAULT_LOCALE: 'ru-RU',
   DATE_FORMAT: 'DD.MM.YYYY',
   CURRENCY: 'RUB'
-} 
+}
+
+// Порядок отображения 6 нижних плашек на главной
+export const METRIC_TILES_ORDER = [
+  'greeting_farewell_score',
+  'completeness_score',
+  'tone_score',
+  'openness_helpfulness_score',
+  'listening_score',
+  'empathy_score'
+] 

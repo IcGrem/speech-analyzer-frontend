@@ -23,7 +23,13 @@ export const useEmployeeStore = defineStore('employee', () => {
     try {
       loading.value = true
       error.value = null
-      employees.value = await getEmployees()
+      const response = await getEmployees()
+      if (response && response.data) {
+        // Поддерживаем оба формата: { data: [...] } и просто [...]
+        employees.value = Array.isArray(response.data) ? response.data : (response.data.data || [])
+      } else {
+        employees.value = []
+      }
     } catch (err) {
       error.value = err.response?.data?.message || err.message
       ErrorHandler.handleApiError(err, 'Загрузка сотрудников', { notify: false })

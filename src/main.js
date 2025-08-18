@@ -12,6 +12,7 @@ const pinia = createPinia()
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import VueWordCloud from 'vuewordcloud';
 import { useAuthStore } from '@/store/auth'
+import './plugins/chart'
 
 const app = createApp(App)
 app.component('VueWordCloud', VueWordCloud)

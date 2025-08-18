@@ -9,6 +9,8 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = ref(sessionStorage.getItem('isAuthenticated') === 'true')
   const loading = ref(false)
   const error = ref(null)
+  const organizationId = ref(null)
+  const accessToken = ref(sessionStorage.getItem('accessToken') || null)
 
   // Getters
   const userRole = computed(() => user.value?.role || null)
@@ -60,9 +62,15 @@ export const useAuthStore = defineStore('auth', () => {
         setUser(userData)
         isAuthenticated.value = true
         
+        // Сохраняем organizationId и токен, если пришли
+        organizationId.value = response.data.organization_id || userData.organization_id || null
+        accessToken.value = response.data.access_token || null
+        
         // Сохраняем в sessionStorage
         sessionStorage.setItem('isAuthenticated', 'true')
         sessionStorage.setItem('userRole', userData.role || '')
+        if (organizationId.value) sessionStorage.setItem('organizationId', String(organizationId.value))
+        if (accessToken.value) sessionStorage.setItem('accessToken', String(accessToken.value))
         
         return { success: true, data: response.data }
       }
@@ -89,8 +97,12 @@ export const useAuthStore = defineStore('auth', () => {
       // Очищаем локальное состояние в любом случае
       user.value = null
       isAuthenticated.value = false
+      organizationId.value = null
+      accessToken.value = null
       sessionStorage.removeItem('isAuthenticated')
       sessionStorage.removeItem('userRole')
+      sessionStorage.removeItem('organizationId')
+      sessionStorage.removeItem('accessToken')
       loading.value = false
     }
   }
@@ -103,13 +115,18 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await checkAuth()
       if (response.status === 200) {
         isAuthenticated.value = true
-        setUser(response.data)
+        const userObj = response.data.user || response.data
+        setUser(userObj)
+        // Сохраняем organizationId из ответа
+        organizationId.value = response.data.organization_id || userObj.organization_id || organizationId.value || sessionStorage.getItem('organizationId') || null
+        if (organizationId.value) sessionStorage.setItem('organizationId', String(organizationId.value))
         sessionStorage.setItem('isAuthenticated', 'true')
         return true
       }
     } catch (err) {
       isAuthenticated.value = false
       sessionStorage.removeItem('isAuthenticated')
+      sessionStorage.removeItem('organizationId')
       return false
     } finally {
       loading.value = false
@@ -123,6 +140,10 @@ export const useAuthStore = defineStore('auth', () => {
       // Если уже был флаг в сессии, пометим как аутентифицированного до проверки
       if (sessionStorage.getItem('isAuthenticated') === 'true') {
         isAuthenticated.value = true
+        const orgFromSession = sessionStorage.getItem('organizationId')
+        if (orgFromSession) organizationId.value = orgFromSession
+        const tokenFromSession = sessionStorage.getItem('accessToken')
+        if (tokenFromSession) accessToken.value = tokenFromSession
       }
       await checkAuthentication()
     } catch (err) {
@@ -139,6 +160,8 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     error,
     ready,
+    organizationId,
+    accessToken,
     
     // Getters
     userRole,

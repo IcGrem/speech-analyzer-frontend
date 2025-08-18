@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getDialogs, getEmployeeMetrics } from '@/api/dialogs'
+import { getDialogs, getEmployeeMetrics, getEmployeeAverageMetrics } from '@/api/dialogs'
 import { ErrorHandler } from '@/utils/errorHandler'
 
 export const useDialogsStore = defineStore('dialogs', () => {
@@ -9,10 +9,31 @@ export const useDialogsStore = defineStore('dialogs', () => {
   const loading = ref(false)
   const error = ref(null)
   
+  // State для пагинации
+  const pagination = ref({
+    currentPage: 1,
+    pageSize: 10,
+    total: 0
+  })
+  
+  // State для фильтров
+  const filters = ref({
+    start_date: null,
+    end_date: null,
+    employee_ids: [],
+    sort_by: 'recording_start_date',
+    sort_order: 'desc'
+  })
+  
   // State для метрик сотрудников
   const employeeMetrics = ref(null)
   const metricsLoading = ref(false)
   const metricsError = ref(null)
+
+  // Новое: средние метрики сотрудников (для столбчатого графика)
+  const employeeAverageMetrics = ref({ labels: [], datasets: [] })
+  const employeeAverageLoading = ref(false)
+  const employeeAverageError = ref(null)
 
   // Getters
   const dialogsList = computed(() => dialogs.value || [])
@@ -29,23 +50,71 @@ export const useDialogsStore = defineStore('dialogs', () => {
     error.value = null
   }
 
-  const fetchDialogs = async () => {
+  const updateFilters = (newFilters) => {
+    filters.value = { ...filters.value, ...newFilters }
+    // Сбрасываем на первую страницу при изменении фильтров
+    pagination.value.currentPage = 1
+  }
+
+  const updatePagination = (newPagination) => {
+    pagination.value = { ...pagination.value, ...newPagination }
+  }
+
+  const fetchDialogs = async (params = {}) => {
     try {
       loading.value = true
       error.value = null
-      const response = await getDialogs()
       
-      // Убеждаемся, что dialogs.value всегда массив
+      // Объединяем параметры из состояния с переданными параметрами
+      const requestParams = {
+        page: pagination.value.currentPage,
+        size: pagination.value.pageSize,
+        sort_by: filters.value.sort_by,
+        sort_order: filters.value.sort_order,
+        start_date: filters.value.start_date,
+        end_date: filters.value.end_date,
+        employee_ids: filters.value.employee_ids,
+        ...params
+      }
+      
+      console.log('Store: fetchDialogs called with params:', requestParams)
+      
+      const response = await getDialogs(requestParams)
+      
+      console.log('Store: API response received:', response)
+      
       if (response && response.data) {
-        dialogs.value = Array.isArray(response.data) ? response.data : [response.data]
+        // Обрабатываем реальную структуру ответа API
+        const apiData = response.data
+        
+        console.log('Store: API data:', apiData)
+        
+        if (apiData.data && Array.isArray(apiData.data)) {
+          dialogs.value = apiData.data
+          pagination.value.total = apiData.total_count || 0
+          pagination.value.pageSize = apiData.size || 10
+          console.log('Store: dialogs updated, length:', dialogs.value.length)
+        } else if (Array.isArray(apiData)) {
+          dialogs.value = apiData
+          pagination.value.total = apiData.length
+          console.log('Store: dialogs updated (direct array), length:', dialogs.value.length)
+        } else {
+          dialogs.value = []
+          pagination.value.total = 0
+          console.log('Store: dialogs set to empty array')
+        }
       } else {
         dialogs.value = []
+        pagination.value.total = 0
+        console.log('Store: no response data, dialogs set to empty')
       }
     } catch (err) {
       error.value = err.response?.data?.message || err.message
+      console.error('Store: Error in fetchDialogs:', err)
       ErrorHandler.handleApiError(err, 'Загрузка диалогов')
       // При ошибке устанавливаем пустой массив
       dialogs.value = []
+      pagination.value.total = 0
       throw err
     } finally {
       loading.value = false
@@ -65,17 +134,48 @@ export const useDialogsStore = defineStore('dialogs', () => {
       const response = await getEmployeeMetrics(params)
       
       if (response && response.data) {
-        employeeMetrics.value = response.data
+        const payload = response.data
+        // Поддерживаем оба формата ответов: прямой объект графика или вложенный в data
+        if (payload && payload.labels && payload.datasets) {
+          employeeMetrics.value = payload
+        } else if (payload && payload.data && payload.data.labels && payload.data.datasets) {
+          employeeMetrics.value = payload.data
+        } else {
+          employeeMetrics.value = { labels: [], datasets: [] }
+        }
       } else {
-        employeeMetrics.value = []
+        employeeMetrics.value = { labels: [], datasets: [] }
       }
     } catch (err) {
       metricsError.value = err.response?.data?.message || err.message
       ErrorHandler.handleApiError(err, 'Загрузка метрик сотрудников')
-      employeeMetrics.value = []
+      employeeMetrics.value = { labels: [], datasets: [] }
       throw err
     } finally {
       metricsLoading.value = false
+    }
+  }
+
+  // Новое: загрузка средних метрик сотрудников
+  const fetchEmployeeAverageMetrics = async (params) => {
+    try {
+      employeeAverageLoading.value = true
+      employeeAverageError.value = null
+
+      const response = await getEmployeeAverageMetrics(params)
+      if (response && response.data) {
+        // Ожидаем ответ в формате Chart.js: { labels, datasets }
+        employeeAverageMetrics.value = response.data
+      } else {
+        employeeAverageMetrics.value = { labels: [], datasets: [] }
+      }
+    } catch (err) {
+      employeeAverageError.value = err.response?.data?.message || err.message
+      ErrorHandler.handleApiError(err, 'Загрузка средних метрик сотрудников', { notify: false })
+      employeeAverageMetrics.value = { labels: [], datasets: [] }
+      throw err
+    } finally {
+      employeeAverageLoading.value = false
     }
   }
 
@@ -265,10 +365,21 @@ export const useDialogsStore = defineStore('dialogs', () => {
     loading,
     error,
     
+    // State для пагинации
+    pagination,
+    
+    // State для фильтров
+    filters,
+    
     // State для метрик сотрудников
     employeeMetrics,
     metricsLoading,
     metricsError,
+    
+    // Новое: средние метрики сотрудников
+    employeeAverageMetrics,
+    employeeAverageLoading,
+    employeeAverageError,
     
     // Getters
     dialogsList,
@@ -282,9 +393,12 @@ export const useDialogsStore = defineStore('dialogs', () => {
     
     // Actions
     clearError,
+    updateFilters,
+    updatePagination,
     fetchDialogs,
     refreshDialogs,
     fetchEmployeeMetrics,
+    fetchEmployeeAverageMetrics,
     initializeWithSampleData,
     initializeWithSampleEmployeeMetrics
   }

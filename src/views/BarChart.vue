@@ -20,6 +20,8 @@
             multiple
             collapse-tags
             collapse-tags-tooltip
+            :loading="employeesLoading"
+            :disabled="employeesError"
           >
             <el-option
               v-for="item in employees"
@@ -59,9 +61,9 @@
         <div v-if="loading" class="w-full h-[600px] flex justify-center items-center">
           <LoadingIndicator />
         </div>
-        <div v-else-if="error" class="w-full h-[600px] flex justify-center items-center">
+        <div v-else-if="metricsError || employeesError" class="w-full h-[600px] flex justify-center items-center">
           <el-alert
-            :title="error"
+            :title="metricsError || employeesError"
             type="error"
             :closable="false"
             show-icon
@@ -98,98 +100,74 @@ import { useDialogsStore } from '@/store/dialogs'
 import { storeToRefs } from 'pinia'
 import LoadingIndicator from '@/components/LoadingIndicator.vue'
 import { ElMessage } from 'element-plus'
-
 import { useEmployeeStore } from '@/store/employees'
+import { useAuthStore } from '@/store/auth'
+
 Chart.register(...registerables)
 
+// Stores
 const employeeStore = useEmployeeStore()
+const authStore = useAuthStore()
+const dialogsStore = useDialogsStore()
 
+// Store refs
+const { error: employeesError, loading: employeesLoading, employees: employeesRef } = storeToRefs(employeeStore)
+const { organizationId: orgIdRef, user: userRef } = storeToRefs(authStore)
+const { loading, employeeMetrics, metricsLoading, metricsError } = storeToRefs(dialogsStore)
+
+// Local state
 const employee = ref(null)
 const employees = ref([])
 const metric = ref('')
-
-const organizationId = computed(() => {
-  if (employees.value && employees.value.length > 0) {
-    return employees.value[0].organization_id || null
-  }
-  return null
-})
-const metrics = ref([
-  {
-    value: 'greeting_farewell_score',
-    label: 'Приветствие и прощание'
-  },
-  {
-    value: 'completeness_score',
-    label: 'Полнота ответа'
-  },
-  {
-    value: 'tone_score',
-    label: 'Тон общения'
-  },
-  {
-    value: 'openness_helpfulness_score',
-    label: 'Открытость и готовность помочь'
-  },
-  {
-    value: 'listening_score',
-    label: 'Умение слушать'
-  },
-  {
-    value: 'empathy_score',
-    label: 'Эмпатия'
-  },
-  {
-    value: 'speech_quality_score',
-    label: 'Грамотная речь'
-  },
-  {
-    value: 'response_time_score',
-    label: 'Время ответа'
-  },
-  {
-    value: 'overall_score',
-    label: 'Итоговая оценка'
-  }
-])
-
-
-const dialogsStore = useDialogsStore()
-const { loading, error, employeeMetrics, metricsLoading } = storeToRefs(dialogsStore)
-const { fetchDialogs, fetchEmployeeMetrics } = dialogsStore
-
 const dateRange = ref('')
 
-// Динамический максимум по данным
+// Static options
+const metrics = ref([
+  { value: 'overall_score', label: 'Итоговая оценка' },
+  { value: 'greeting_farewell_score', label: 'Приветствие и прощание' },
+  { value: 'completeness_score', label: 'Полнота ответа' },
+  { value: 'tone_score', label: 'Тон общения' },
+  { value: 'openness_helpfulness_score', label: 'Открытость и готовность помочь' },
+  { value: 'listening_score', label: 'Умение слушать' },
+  { value: 'empathy_score', label: 'Эмпатия' },
+  { value: 'speech_quality_score', label: 'Грамотная речь' },
+  { value: 'response_time_score', label: 'Время ответа' },
+])
+
+// Derived values
+const organizationId = computed(() => {
+  const authOrgId = orgIdRef?.value
+  if (authOrgId) return authOrgId
+  if (employees.value && employees.value.length > 0) return employees.value[0].organization_id || null
+  const authUser = userRef?.value
+  if (authUser && authUser.organization_id) return authUser.organization_id
+  const fromSession = sessionStorage.getItem('organizationId')
+  if (fromSession) return fromSession
+  return null
+})
+
+// Y axis dynamic bounds
 const yMax = computed(() => {
   const m = employeeMetrics.value
-  if (!m || !Array.isArray(m.datasets) || m.datasets.length === 0) {
-    return 5
-  }
+  if (!m || !Array.isArray(m.datasets) || m.datasets.length === 0) return 5
   let maxValue = Number.NEGATIVE_INFINITY
   for (const dataset of m.datasets) {
     if (!Array.isArray(dataset.data)) continue
     for (const raw of dataset.data) {
       const num = typeof raw === 'number' ? raw : parseFloat(raw)
-      if (!Number.isNaN(num)) {
-        if (num > maxValue) maxValue = num
-      }
+      if (!Number.isNaN(num) && num > maxValue) maxValue = num
     }
   }
-  if (!Number.isFinite(maxValue)) return 5
-  return maxValue
+  return Number.isFinite(maxValue) ? maxValue : 5
 })
-
-// Шаг 0.1 — округляем верхнюю границу вверх до ближайшего шага 0.1
 const yMaxRounded = computed(() => Math.ceil((yMax.value + Number.EPSILON) * 10) / 10)
 
+// Chart options
 const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
-    datalabels: {
-      display: false,
-    },
+    datalabels: { display: false },
     tooltip: {
       mode: 'index',
       intersect: false,
@@ -201,81 +179,80 @@ const chartOptions = computed(() => ({
       cornerRadius: 4,
       padding: 12,
       callbacks: {
-        label: function(context) {
-          return context.dataset.label + ': ' + context.parsed.y.toFixed(2)
-        }
+        label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`
       }
     },
     legend: {
       display: true,
       position: 'bottom',
-      labels: {
-        usePointStyle: true,
-        padding: 20,
-        font: {
-          size: 12
-        }
-      },
+      labels: { usePointStyle: true, padding: 20, font: { size: 12 } },
       align: 'start',
       fullWidth: true
     }
   },
   elements: {
-    point: {
-      radius: 5,
-      hoverRadius: 6,
-      borderWidth: 2,
-      backgroundColor: '#fff'
-    },
-    line: {
-      borderWidth: 3,
-      tension: 1
-    }
+    point: { radius: 5, hoverRadius: 6, borderWidth: 2, backgroundColor: '#fff' },
+    line: { borderWidth: 3, tension: 1 }
   },
   scales: {
     x: {
-      grid: {
-        color: 'rgba(0, 0, 0, 0.1)',
-        lineWidth: 1
-      },
-      ticks: {
-        font: {
-          size: 11
-        }
-      }
+      grid: { color: 'rgba(0, 0, 0, 0.1)', lineWidth: 1 },
+      ticks: { font: { size: 11 } }
     },
     y: {
       beginAtZero: false,
       max: yMaxRounded.value,
-      grid: {
-        color: 'rgba(0, 0, 0, 0.1)',
-        lineWidth: 1
-      },
-      ticks: {
-        stepSize: 0.1,
-        callback: (value) => Number(value).toFixed(1),
-        font: {
-          size: 11
-        }
-      }
-    },
+      grid: { color: 'rgba(0, 0, 0, 0.1)', lineWidth: 1 },
+      ticks: { stepSize: 0.1, callback: (v) => Number(v).toFixed(1), font: { size: 11 } }
+    }
   },
-  interaction: {
-    mode: 'nearest',
-    axis: 'x',
-    intersect: false
-  }
+  interaction: { mode: 'nearest', axis: 'x', intersect: false }
 }))
 
-// Computed property to transform employee metrics data for the chart
+// Transform API payload to chart data
 const lineData = computed(() => {
   const metrics = employeeMetrics.value
   if (!metrics || !Array.isArray(metrics.labels) || !Array.isArray(metrics.datasets)) {
     return { labels: [], datasets: [] }
   }
 
+  const parseLabelDate = (label) => {
+    if (!label || typeof label !== 'string') return null
+    const isoDate = new Date(label)
+    if (!Number.isNaN(isoDate.getTime())) return isoDate
+    const dotMatch = label.match(/^([0-3]?\d)[.](0?\d|1[0-2])[.](\d{4})$/)
+    if (dotMatch) {
+      const d = new Date(Number(dotMatch[3]), Number(dotMatch[2]) - 1, Number(dotMatch[1]))
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    const hyphenMatch = label.match(/^([0-3]?\d)-(0?\d|1[0-2])-(\d{4})$/)
+    if (hyphenMatch) {
+      const d = new Date(Number(hyphenMatch[3]), Number(hyphenMatch[2]) - 1, Number(hyphenMatch[1]))
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    const slashMatch = label.match(/^([0-3]?\d)[\/](0?\d|1[0-2])[\/](\d{4})$/)
+    if (slashMatch) {
+      const d = new Date(Number(slashMatch[3]), Number(slashMatch[2]) - 1, Number(slashMatch[1]))
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    return null
+  }
+
+  let indicesToKeep = metrics.labels.map((_, idx) => idx)
+  if (Array.isArray(dateRange.value) && dateRange.value[0] && dateRange.value[1]) {
+    const start = new Date(dateRange.value[0])
+    const end = new Date(dateRange.value[1])
+    indicesToKeep = metrics.labels
+      .map((label, idx) => ({ idx, date: parseLabelDate(label) }))
+      .filter(({ date }) => date && date >= start && date <= end)
+      .map(({ idx }) => idx)
+  }
+
+  const filteredLabels = indicesToKeep.map(i => metrics.labels[i]) || []
+
   const enrichedDatasets = metrics.datasets.map(dataset => ({
     ...dataset,
+    data: Array.isArray(dataset.data) ? indicesToKeep.map(i => dataset.data[i]) : dataset.data,
     borderColor: dataset.backgroundColor || '#409EFF',
     backgroundColor: 'transparent',
     tension: 0.2,
@@ -286,11 +263,30 @@ const lineData = computed(() => {
     pointHoverBorderColor: dataset.backgroundColor || '#409EFF'
   }))
 
-  return {
-    labels: metrics.labels,
-    datasets: enrichedDatasets
-  }
+  return { labels: filteredLabels, datasets: enrichedDatasets }
 })
+
+// Actions
+const { fetchDialogs, fetchEmployeeMetrics } = dialogsStore
+
+const loadEmployeeMetrics = async () => {
+  try {
+    if (!organizationId.value || !metric.value || !dateRange.value?.[0] || !dateRange.value?.[1]) return
+
+    const params = {
+      organization_id: organizationId.value,
+      metric_type: metric.value,
+      start_date: dateRange.value[0].toISOString(),
+      end_date: dateRange.value[1].toISOString()
+    }
+    if (employee.value && Array.isArray(employee.value) && employee.value.length > 0) {
+      params.employee_ids = employee.value
+    }
+    await fetchEmployeeMetrics(params)
+  } catch (error) {
+    ElMessage.error('Ошибка при загрузке метрик сотрудников')
+  }
+}
 
 const refreshData = async () => {
   try {
@@ -301,73 +297,21 @@ const refreshData = async () => {
   }
 }
 
-// Функция для загрузки метрик сотрудников
-const loadEmployeeMetrics = async () => {
-  try {
-    // Проверяем минимально необходимые параметры
-    if (!organizationId.value || !metric.value || !dateRange.value?.[0] || !dateRange.value?.[1]) {
-      // Недостаточно данных для загрузки метрик — пропускаем
-    
-      return
-    }
-    
-    const params = {
-      organization_id: organizationId.value,
-      metric_type: metric.value,
-      start_date: dateRange.value[0].toISOString(),
-      end_date: dateRange.value[1].toISOString()
-    }
-    
-    // Добавляем employee_ids только если конкретные сотрудники выбраны
-    if (employee.value && Array.isArray(employee.value) && employee.value.length > 0) {
-      params.employee_ids = employee.value
-    }
-    // Если employee.value is null, то не добавляем employee_ids - загружаем всех
-    
-  
-    
-    await fetchEmployeeMetrics(params)
-    
-  } catch (error) {
-    ElMessage.error('Ошибка при загрузке метрик сотрудников')
-  }
-}
-
-// Обработчик изменения сотрудника
 const changeEmployee = (employeeIds) => {
-
-  
-  // Если выбрано "all" (все сотрудники), устанавливаем null
   if (employeeIds === 'all' || employeeIds === null) {
     employee.value = null
   } else {
-    // Фильтруем null значения из массива
     const filteredIds = Array.isArray(employeeIds) ? employeeIds.filter(id => id !== null && id !== undefined) : employeeIds
     employee.value = filteredIds.length > 0 ? filteredIds : null
-    
-    // Если после фильтрации массив пустой, устанавливаем null
-    if (Array.isArray(employee.value) && employee.value.length === 0) {
-      employee.value = null
-    }
+    if (Array.isArray(employee.value) && employee.value.length === 0) employee.value = null
   }
-  
-
-  
-  // Сразу загружаем метрики (с выбранными сотрудниками или без них)
   loadEmployeeMetrics()
 }
 
-// Обработчик изменения метрики
-const onMetricChange = () => {
-  loadEmployeeMetrics()
-}
+const onMetricChange = () => loadEmployeeMetrics()
+const onDateChange = () => loadEmployeeMetrics()
 
-// Обработчик изменения дат
-const onDateChange = () => {
-  loadEmployeeMetrics()
-}
-
-// Разрешаем выбирать только даты с 1 по 31 июля 2025 года
+// UI helpers
 const disableExceptJuly2025 = (date) => {
   if (!(date instanceof Date)) return true
   const year = date.getFullYear()
@@ -376,29 +320,14 @@ const disableExceptJuly2025 = (date) => {
   return !(year === 2025 && month === 6 && day >= 1 && day <= 31)
 }
 
-// Функция для безопасного формирования имени сотрудника
 const getEmployeeDisplayName = (employee) => {
   if (!employee) return 'Неизвестный сотрудник'
-  
   const firstName = employee.first_name || employee.name || employee.firstName || ''
   const lastName = employee.last_name || employee.surname || employee.lastName || ''
-  
-  if (firstName && lastName) {
-    return `${firstName} ${lastName}`
-  }
-  
-  if (firstName) {
-    return firstName
-  }
-  
-  if (lastName) {
-    return lastName
-  }
-  
-  if (employee.name) {
-    return employee.name
-  }
-  
+  if (firstName && lastName) return `${firstName} ${lastName}`
+  if (firstName) return firstName
+  if (lastName) return lastName
+  if (employee.name) return employee.name
   return employee.id ? `Сотрудник ${employee.id.slice(0, 8)}` : 'Неизвестный сотрудник'
 }
 
@@ -407,18 +336,20 @@ const selectAllEmployees = () => {
   loadEmployeeMetrics()
 }
 
+// Lifecycle
 onMounted(async () => {
   try {
     await employeeStore.fetchEmployees()
-    if (employeeStore.employees && employeeStore.employees.data) {
-      employees.value = employeeStore.employees.data
-      metric.value = metrics.value[0].value
-      dateRange.value = [
-        new Date('2025-07-26T00:00:00'),
-        new Date('2025-07-31T23:59:59')
-      ]
-      await loadEmployeeMetrics()
-    }
+    const raw = employeesRef?.value
+    const normalizedEmployees = Array.isArray(raw) ? raw : (raw?.data || [])
+    employees.value = normalizedEmployees
+
+    metric.value = metrics.value[0].value
+    dateRange.value = [
+      new Date('2025-07-26T00:00:00'),
+      new Date('2025-07-31T23:59:59')
+    ]
+    await loadEmployeeMetrics()
   } catch (error) {
     console.error('Ошибка при загрузке сотрудников:', error)
   }

@@ -4,43 +4,60 @@
       <el-col :span="6">
         <div class="flex flex-col gap-4 justify-center h-full">
           <div class="p-4 rounded-2xl bg-white shadow-md flex items-center flex-col justify-center h-[180px]">
-            <div class="text-sm text-gray-500">Итоговая оценка</div>
-            <div class="text-4xl font-semibold text-gray-800" v-if="overallScore !== null">{{ overallScore }}</div>
+            <div class="text-sm text-gray-500">{{ overallTile?.title || 'Итоговая оценка' }}</div>
+            <div class="text-4xl font-semibold text-gray-800" v-if="!metricsLoading && overallTile && overallTile.score !== null">{{ formatDecimal(overallTile.score) }}</div>
             <el-skeleton v-else animated :rows="1" style="width: 120px" />
           </div>
         </div>
       </el-col>
       <el-col :span="18">
         <div class="w-full h-[450px] flex justify-center items-center">
-          <Line style="width: 100%;" :data="chartData" :options="chartOptions" />
+          <template v-if="!metricsLoading">
+            <Line style="width: 100%;" :data="chartData" :options="chartOptions" />
+          </template>
+          <template v-else>
+            <el-skeleton animated :rows="6" style="width: 100%" />
+          </template>
         </div>
+        <el-alert v-if="metricsError" class="mt-4" type="error" :closable="false" show-icon :title="metricsError" />
       </el-col>
     </el-row>
+
     <el-row :gutter="20">
-      <el-col class="mb-4" v-for="item in otherScores" :key="item.title" :span="6">
-        <div class="p-4 rounded-2xl bg-white shadow-md flex items-center flex-col justify-center h-[180px]">
-          <div class="text-sm text-gray-500 text-center">{{ item.title }}</div>
-          <div class="text-3xl font-semibold text-gray-800">{{ item.score }}</div>
-        </div>
-      </el-col>
+      <template v-if="!metricsLoading">
+        <el-col class="mb-4" v-for="item in bottomTiles" :key="item.key" :span="8">
+          <div class="p-4 rounded-2xl bg-white shadow-md flex items-center flex-col justify-center h-[180px]">
+            <div class="text-sm text-gray-500 text-center">{{ item.title }}</div>
+            <div class="text-3xl font-semibold text-gray-800">{{ formatDecimal(item.score) }}</div>
+          </div>
+        </el-col>
+      </template>
+      <template v-else>
+        <el-col v-for="i in 6" :key="i" :span="8" class="mb-4">
+          <div class="p-4 rounded-2xl bg-white shadow-md h-[180px]">
+            <el-skeleton animated :rows="2" />
+          </div>
+        </el-col>
+      </template>
     </el-row>
   </PageWrapper>
 </template>
 
 <script setup>
-import { onMounted, computed } from 'vue'
+import { computed, watch } from 'vue'
 import { Line } from 'vue-chartjs'
-import { Chart, registerables } from 'chart.js'
-Chart.register(...registerables)
 import { useAuthStore } from '@/store/auth'
-import { useOrganizationStore } from '@/store/organization'
-import { useEmployeeStore } from '@/store/employees'
 import { useOrganizationMetricsStore } from '@/store/organizationMetrics'
+import { storeToRefs } from 'pinia'
+import { METRIC_TILES_ORDER } from '@/constants'
+import { formatDecimal } from '@/utils'
 
 const authStore = useAuthStore()
-const organizationStore = useOrganizationStore()
-const employeeStore = useEmployeeStore()
 const organizationMetricsStore = useOrganizationMetricsStore()
+
+// Рефы стора
+const { metrics, averageScores, loading: metricsLoading, error: metricsError } = storeToRefs(organizationMetricsStore)
+const { organizationId, user } = storeToRefs(authStore)
 
 const chartOptions = {
   responsive: true,
@@ -61,9 +78,9 @@ const chartOptions = {
   },
 }
 
-// Трансформируем данные из стора под формат Line chart
+// Данные для графика
 const chartData = computed(() => {
-  const g = organizationMetricsStore.metrics || { labels: [], datasets: [] }
+  const g = metrics.value || { labels: [], datasets: [] }
   const datasets = Array.isArray(g.datasets)
     ? g.datasets.map(ds => ({
         ...ds,
@@ -76,47 +93,39 @@ const chartData = computed(() => {
   return { labels: g.labels || [], datasets }
 })
 
-// Плашки
-const averageScoresArray = computed(() => {
-  const src = organizationMetricsStore.averageScores || null
+// Источник средних значений от бэка
+const averageScoresSrc = computed(() => averageScores.value || null)
+
+// Плашка слева: итоговая оценка
+const overallTile = computed(() => {
+  const src = averageScoresSrc.value
+  if (!src) return null
+  const v = src.overall_score
+  return { key: 'overall_score', title: v?.title || 'Итоговая оценка', score: v?.score ?? null }
+})
+
+// Нижние плашки согласно константе
+const bottomTiles = computed(() => {
+  const src = averageScoresSrc.value
   if (!src) return []
-  // Преобразуем объект в массив { title, score, key }
-  return Object.entries(src).map(([key, val]) => ({ key, title: val?.title || key, score: val?.score ?? null }))
+  return METRIC_TILES_ORDER
+    .filter(k => src[k])
+    .map(k => ({ key: k, title: src[k]?.title || k, score: src[k]?.score ?? null }))
 })
 
-const overallScore = computed(() => {
-  const found = averageScoresArray.value.find(i => i.key === 'overall_score')
-  return found?.score ?? null
-})
+// Реактивный orgId и единоразовая загрузка
+const orgId = computed(() => organizationId.value || user.value?.organization_id || null)
 
-const otherScores = computed(() => averageScoresArray.value.filter(i => i.key !== 'overall_score'))
-
-function getFirstOrganizationId() {
-  const orgs = organizationStore.organizations
-  const list = Array.isArray(orgs?.data) ? orgs.data : Array.isArray(orgs) ? orgs : []
-  const first = list && list.length > 0 ? list[0] : null
-  if (!first) return null
-  return first.id || first.uuid || first.organization_id || first._id || null
-}
-
-// Дефолтный диапазон: последние 7 дней июля 2025 (25.07.2025 - 31.07.2025)
-const DEFAULT_START = '2025-07-25'
-const DEFAULT_END = '2025-07-31'
-
-onMounted(async () => {
-  await authStore.checkAuthentication()
-  await organizationStore.fetchOrganizations()
-  await employeeStore.fetchEmployees()
-
-  const orgId = getFirstOrganizationId()
-  if (orgId) {
-    await organizationMetricsStore.fetchOrganizationAverageMetrics({ 
-      organization_id: orgId,
-      start_date: DEFAULT_START,
-      end_date: DEFAULT_END,
-    })
+watch(orgId, async (id, _prev, onCleanup) => {
+  if (!id) return
+  let cancelled = false
+  onCleanup(() => { cancelled = true })
+  try {
+    await organizationMetricsStore.fetchOrganizationAverageMetrics({ organization_id: id })
+  } finally {
+    if (cancelled) return
   }
-})
+}, { immediate: true })
 </script>
 
 <style lang="scss" scoped>
