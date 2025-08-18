@@ -14,6 +14,8 @@
               :start-placeholder="$t('pages.pieChart.startDate')"
               :end-placeholder="$t('pages.pieChart.endDate')"
               @change="handleDateRangeChange"
+              :disabled-date="disableOutsideJuly2025"
+              :default-value="defaultPickerMonth"
               style="width: 100%;"
             />
           </el-col>
@@ -161,6 +163,16 @@ const employeeStore = useEmployeeStore()
 const dialogVisible = ref(false)
 const selectedDialog = ref(null)
 const dialogDetailsLoading = ref(false)
+
+// Дата по умолчанию для открытия пикера на июле 2025
+const defaultPickerMonth = new Date(2025, 6, 1)
+
+// Ограничение выбора дат только июлем 2025
+function disableOutsideJuly2025(date) {
+  const y = date.getFullYear()
+  const m = date.getMonth()
+  return !(y === 2025 && m === 6)
+}
 
 // Достаём реактивные поля как refs из stores
 const { 
