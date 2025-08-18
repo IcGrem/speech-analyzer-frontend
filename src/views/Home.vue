@@ -114,7 +114,7 @@ const bottomTiles = computed(() => {
 })
 
 // Реактивный orgId и единоразовая загрузка
-const orgId = computed(() => organizationId.value || user.value?.organization_id || null)
+const orgId = computed(() => organizationId.value || user.value?.organization_id || sessionStorage.getItem('organizationId') || null)
 
 watch(orgId, async (id, _prev, onCleanup) => {
   if (!id) return

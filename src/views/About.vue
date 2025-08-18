@@ -88,7 +88,7 @@ const { metrics, loading, error } = storeToRefs(orgMetricsStore)
 const { fetchOrganizationDailyMetrics } = orgMetricsStore
 const { organizationId: orgIdRef, user } = storeToRefs(authStore)
 
-const organizationId = computed(() => orgIdRef.value || user.value?.organization_id || null)
+const organizationId = computed(() => orgIdRef.value || user.value?.organization_id || sessionStorage.getItem('organizationId') || null)
 
 const metricsOptions = ref([
   { value: 'overall_score', label: 'Итоговая оценка' },
