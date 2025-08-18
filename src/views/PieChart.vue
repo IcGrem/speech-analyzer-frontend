@@ -248,12 +248,12 @@ const normalizedConversation = computed(() => {
 // Заголовки: включаем сортировку по клику на заголовок
 const tableHeader = computed(() => [
   { property: 'date', label: t('pages.pieChart.date'), sortable: 'custom', width: '150' },
-  { property: 'employee_name', label: t('pages.pieChart.employee'), sortable: 'custom'},
-  { property: 'dialog_id', label: t('pages.pieChart.dialogNumber'), sortable: false, width: '300' },
-  { property: 'conversation_type', label: t('pages.pieChart.conversationType'), sortable: false, width: '180' },
-  { property: 'overall_score', label: t('pages.pieChart.metrics'), sortable: 'custom', width: '150', align: 'center' },
+  { property: 'employee_name', label: t('pages.pieChart.employee'), width: '250', sortable: 'custom'},
+  { property: 'dialog_id', label: t('pages.pieChart.dialogNumber'), sortable: false, width: '200' },
+  { property: 'conversation_type', label: t('pages.pieChart.conversationType'), sortable: false, width: '120' },
+  { property: 'overall_score', label: t('pages.pieChart.metrics'), sortable: 'custom', width: '170', align: 'center' },
   { property: 'dictionaries', label: t('pages.pieChart.dictionary'), sortable: false, width: '120', align: 'center' },
-  { property: 'actions', label: t('pages.pieChart.link'), align: 'right', sortable: false },
+  { property: 'actions', label: t('pages.pieChart.link'), width: '120', align: 'right', sortable: false },
 ])
 
 // Обработчики событий

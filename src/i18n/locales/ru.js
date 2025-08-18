@@ -48,7 +48,7 @@ export default {
       date: 'Дата',
       employee: 'Сотрудник',
       dialogNumber: 'Номер/Id диалога',
-      metrics: 'Оценки по всем метрикам',
+      metrics: 'Итоговая оценка',
       topWords: 'Топ 5 слов',
       dictionary: 'Факт наличия в словарях',
       link: 'Ссылка',
