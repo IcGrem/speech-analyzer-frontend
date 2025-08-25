@@ -2,6 +2,7 @@ import api from './api';
 
 export const getDialogs = (params = {}) => {
 	const {
+		organization_id,
 		page,
 		size,
 		start_date,
@@ -24,8 +25,8 @@ export const getDialogs = (params = {}) => {
 
 	const qs = queryParams.toString();
 	const url = qs.length > 0
-		? `/dialogs/get-dialogs?${qs}`
-		: '/dialogs/get-dialogs';
+		? `/dialogs/get-dialogs/${organization_id}?${qs}`
+		: `/dialogs/get-dialogs/${organization_id}`;
 
 	return api.get(url);
 };

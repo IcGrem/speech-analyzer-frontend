@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getDialogs, getEmployeeMetrics, getEmployeeAverageMetrics } from '@/api/dialogs'
 import { ErrorHandler } from '@/utils/errorHandler'
+import { useAuthStore } from '@/store/auth'
 
 export const useDialogsStore = defineStore('dialogs', () => {
   // State
@@ -65,8 +66,19 @@ export const useDialogsStore = defineStore('dialogs', () => {
       loading.value = true
       error.value = null
       
+      // Получаем organization_id из auth store
+      const authStore = useAuthStore()
+      const organizationId = authStore.organizationId || 
+                           authStore.user?.organization_id || 
+                           sessionStorage.getItem('organizationId')
+      
+      if (!organizationId) {
+        throw new Error('Organization ID not found')
+      }
+      
       // Объединяем параметры из состояния с переданными параметрами
       const requestParams = {
+        organization_id: organizationId,
         page: pagination.value.currentPage,
         size: pagination.value.pageSize,
         sort_by: filters.value.sort_by,

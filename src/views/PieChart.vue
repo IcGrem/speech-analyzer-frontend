@@ -112,8 +112,6 @@
           />
         </div>
       </el-col>
-
-      
     </el-row>
 
     <!-- Модальное окно просмотра -->
@@ -151,6 +149,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useLocalization } from '@/composables/useI18n'
 import { useDialogsStore } from '@/store/dialogs'
 import { useEmployeeStore } from '@/store/employees'
+import { useAuthStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import { formatDateTime as formatDateTimeUtil } from '@/utils'
 import { getDialogById } from '@/api/dialogs'
