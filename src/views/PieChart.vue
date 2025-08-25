@@ -228,21 +228,84 @@ const normalizedEmployees = computed(() => {
 const normalizedConversation = computed(() => {
   const raw = selectedDialog.value?.conversation
   if (!raw) return []
-  let items = raw
+  
+  // Если это массив (JSON), обрабатываем как раньше
+  if (Array.isArray(raw)) {
+    return raw.map(m => ({
+      speaker: m.speaker ?? '',
+      message: m.message ?? '',
+      timestamp: m.timestamp ?? ''
+    }))
+  }
+  
+  // Если это строка, пытаемся парсить как JSON
   if (typeof raw === 'string') {
     try {
-      items = JSON.parse(raw)
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed.map(m => ({
+          speaker: m.speaker ?? '',
+          message: m.message ?? '',
+          timestamp: m.timestamp ?? ''
+        }))
+      }
     } catch (e) {
-      return []
+      // Если не JSON, обрабатываем как текстовый разговор
+      return parseTextConversation(raw)
     }
   }
-  if (!Array.isArray(items)) return []
-  return items.map(m => ({
-    speaker: m.speaker ?? '',
-    message: m.message ?? '',
-    timestamp: m.timestamp ?? ''
-  }))
+  
+  return []
 })
+
+// Функция для парсинга текстового разговора
+function parseTextConversation(text) {
+  if (!text || typeof text !== 'string') return []
+  
+  const messages = []
+  const lines = text.split('\n')
+  let currentSpeaker = ''
+  let currentMessage = ''
+  
+  for (const line of lines) {
+    const trimmedLine = line.trim()
+    if (!trimmedLine) continue
+    
+    // Ищем паттерны типа "Колега1:", "Колега2:", "Спикер:" и т.д.
+    const speakerMatch = trimmedLine.match(/^([^:]+):\s*(.*)/)
+    
+    if (speakerMatch) {
+      // Если у нас есть предыдущее сообщение, сохраняем его
+      if (currentSpeaker && currentMessage.trim()) {
+        messages.push({
+          speaker: currentSpeaker,
+          message: currentMessage.trim(),
+          timestamp: ''
+        })
+      }
+      
+      // Начинаем новое сообщение
+      currentSpeaker = speakerMatch[1].trim()
+      currentMessage = speakerMatch[2] || ''
+    } else {
+      // Продолжение предыдущего сообщения
+      if (currentSpeaker) {
+        currentMessage += (currentMessage ? '\n' : '') + trimmedLine
+      }
+    }
+  }
+  
+  // Добавляем последнее сообщение
+  if (currentSpeaker && currentMessage.trim()) {
+    messages.push({
+      speaker: currentSpeaker,
+      message: currentMessage.trim(),
+      timestamp: ''
+    })
+  }
+  
+  return messages
+}
 
 // Заголовки: включаем сортировку по клику на заголовок
 const tableHeader = computed(() => [
