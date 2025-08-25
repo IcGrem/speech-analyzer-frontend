@@ -112,6 +112,15 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = true
       error.value = null
       
+      // Проверяем, есть ли токен перед запросом
+      const token = sessionStorage.getItem('accessToken')
+      if (!token) {
+        isAuthenticated.value = false
+        sessionStorage.removeItem('isAuthenticated')
+        sessionStorage.removeItem('organizationId')
+        return false
+      }
+      
       const response = await checkAuth()
       if (response.status === 200) {
         isAuthenticated.value = true
@@ -127,6 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
       isAuthenticated.value = false
       sessionStorage.removeItem('isAuthenticated')
       sessionStorage.removeItem('organizationId')
+      sessionStorage.removeItem('accessToken')
       return false
     } finally {
       loading.value = false
@@ -144,10 +154,20 @@ export const useAuthStore = defineStore('auth', () => {
         if (orgFromSession) organizationId.value = orgFromSession
         const tokenFromSession = sessionStorage.getItem('accessToken')
         if (tokenFromSession) accessToken.value = tokenFromSession
+        
+        // Проверяем авторизацию только если есть токен или флаг авторизации
+        await checkAuthentication()
+      } else {
+        // Если нет флага авторизации, просто помечаем как готовое
+        isAuthenticated.value = false
       }
-      await checkAuthentication()
     } catch (err) {
       console.error('Ошибка инициализации аутентификации:', err)
+      // В случае ошибки сбрасываем состояние авторизации
+      isAuthenticated.value = false
+      sessionStorage.removeItem('isAuthenticated')
+      sessionStorage.removeItem('organizationId')
+      sessionStorage.removeItem('accessToken')
     } finally {
       ready.value = true
     }

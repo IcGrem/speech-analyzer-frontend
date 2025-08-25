@@ -19,7 +19,7 @@ instance.interceptors.request.use(
     const token = sessionStorage.getItem('accessToken')
     if (token) {
       config.headers = config.headers || {}
-      config.headers['Authorization'] = token
+      config.headers['Authorization'] = `Bearer ${token}`
     }
     return config
   },

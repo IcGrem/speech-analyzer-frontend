@@ -13,6 +13,10 @@ export function authMiddleware(to, from, next) {
   if (to.meta.requiresAuth) {
     // Если не авторизован - перенаправляем на логин
     if (!isAuthenticated) {
+      // Сохраняем текущий маршрут для редиректа после логина
+      if (to.path !== '/login') {
+        sessionStorage.setItem('redirectAfterLogin', to.fullPath)
+      }
       next('/login')
       return
     }

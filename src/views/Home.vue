@@ -11,7 +11,7 @@
         </div>
       </el-col>
       <el-col :span="18">
-        <div class="w-full h-[450px] flex justify-center items-center">
+        <div class="w-full h-[450px] flex justify-center items-center mb-4">
           <template v-if="!metricsLoading">
             <Line style="width: 100%;" :data="chartData" :options="chartOptions" />
           </template>
@@ -63,8 +63,28 @@ const chartOptions = {
   responsive: true,
   plugins: {
     legend: {
-      display: false,
+      display: true,
       position: 'bottom',
+      labels: {
+        usePointStyle: true,
+        padding: 20,
+        font: {
+          size: 12,
+          family: 'Inter, sans-serif'
+        },
+        generateLabels: (chart) => {
+          const datasets = chart.data.datasets;
+          return datasets.map((dataset, index) => ({
+            text: dataset.label || `Набор данных ${index + 1}`,
+            fillStyle: dataset.backgroundColor,
+            strokeStyle: dataset.borderColor,
+            lineWidth: 2,
+            pointStyle: 'circle',
+            hidden: !chart.isDatasetVisible(index),
+            index: index
+          }));
+        }
+      }
     },
     title: {
       display: false,
@@ -82,12 +102,15 @@ const chartOptions = {
 const chartData = computed(() => {
   const g = metrics.value || { labels: [], datasets: [] }
   const datasets = Array.isArray(g.datasets)
-    ? g.datasets.map(ds => ({
+    ? g.datasets.map((ds, index) => ({
         ...ds,
+        label: ds.label || `Метрика ${index + 1}`,
         borderColor: ds.borderColor || ds.backgroundColor || '#6366f1',
         backgroundColor: ds.backgroundColor || 'rgba(99,102,241,0.2)',
         tension: 0.3,
         fill: false,
+        pointRadius: 4,
+        pointHoverRadius: 6,
       }))
     : []
   return { labels: g.labels || [], datasets }
@@ -129,5 +152,23 @@ watch(orgId, async (id, _prev, onCleanup) => {
 </script>
 
 <style lang="scss" scoped>
-
+// Стили для легенды диаграммы
+:deep(.chartjs-legend) {
+  margin-top: 1rem;
+  
+  .chartjs-legend-item {
+    margin-right: 1rem;
+    margin-bottom: 0.5rem;
+    
+    .chartjs-legend-marker {
+      border-radius: 50%;
+      margin-right: 0.5rem;
+    }
+    
+    .chartjs-legend-text {
+      font-weight: 500;
+      color: #374151;
+    }
+  }
+}
 </style>
