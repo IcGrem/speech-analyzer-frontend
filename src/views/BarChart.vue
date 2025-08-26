@@ -346,7 +346,7 @@ onMounted(async () => {
 
     metric.value = metrics.value[0].value
     dateRange.value = [
-      new Date('2025-07-26T00:00:00'),
+      new Date('2025-07-01T00:00:00'),
       new Date('2025-07-31T23:59:59')
     ]
     await loadEmployeeMetrics()

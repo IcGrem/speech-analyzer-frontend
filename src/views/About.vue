@@ -261,7 +261,7 @@ onMounted(async () => {
     // Значения по умолчанию
     selectedMetrics.value = metricsOptions.value.map(m => m.value)
     dateRange.value = [
-      new Date('2025-07-26T00:00:00'),
+      new Date('2025-07-01T00:00:00'),
       new Date('2025-07-31T23:59:59'),
     ]
     await loadOrganizationMetrics()
