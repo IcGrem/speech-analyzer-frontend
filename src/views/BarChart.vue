@@ -191,19 +191,38 @@ const chartOptions = computed(() => ({
     }
   },
   elements: {
-    point: { radius: 5, hoverRadius: 6, borderWidth: 2, backgroundColor: '#fff' },
-    line: { borderWidth: 3, tension: 1 }
+    point: { 
+      radius: 4, 
+      hoverRadius: 6, 
+      borderWidth: 2, 
+      backgroundColor: '#fff',
+      display: 'auto'
+    },
+    line: { 
+      borderWidth: 2, 
+      tension: 0.1,
+      spanGaps: false
+    }
   },
   scales: {
     x: {
+      type: 'category',
       grid: { color: 'rgba(0, 0, 0, 0.1)', lineWidth: 1 },
-      ticks: { font: { size: 11 } }
+      ticks: { 
+        font: { size: 11 },
+        maxRotation: 45,
+        minRotation: 0
+      }
     },
     y: {
       beginAtZero: false,
       max: yMaxRounded.value,
       grid: { color: 'rgba(0, 0, 0, 0.1)', lineWidth: 1 },
-      ticks: { stepSize: 0.1, callback: (v) => Number(v).toFixed(1), font: { size: 11 } }
+      ticks: { 
+        stepSize: 0.1, 
+        callback: (v) => Number(v).toFixed(1), 
+        font: { size: 11 } 
+      }
     }
   },
   interaction: { mode: 'nearest', axis: 'x', intersect: false }
@@ -216,25 +235,37 @@ const lineData = computed(() => {
     return { labels: [], datasets: [] }
   }
 
+
+
   const parseLabelDate = (label) => {
     if (!label || typeof label !== 'string') return null
+    
+    // Для формата "DD-MM-YYYY"
+    const hyphenMatch = label.match(/^([0-3]?\d)-([0-1]?\d)-(\d{4})$/)
+    if (hyphenMatch) {
+      const day = parseInt(hyphenMatch[1], 10)
+      const month = parseInt(hyphenMatch[2], 10) - 1 // Месяцы в JS начинаются с 0
+      const year = parseInt(hyphenMatch[3], 10)
+      const d = new Date(year, month, day)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    
+    // Для других форматов
     const isoDate = new Date(label)
     if (!Number.isNaN(isoDate.getTime())) return isoDate
+    
     const dotMatch = label.match(/^([0-3]?\d)[.](0?\d|1[0-2])[.](\d{4})$/)
     if (dotMatch) {
       const d = new Date(Number(dotMatch[3]), Number(dotMatch[2]) - 1, Number(dotMatch[1]))
       return Number.isNaN(d.getTime()) ? null : d
     }
-    const hyphenMatch = label.match(/^([0-3]?\d)-(0?\d|1[0-2])-(\d{4})$/)
-    if (hyphenMatch) {
-      const d = new Date(Number(hyphenMatch[3]), Number(hyphenMatch[2]) - 1, Number(hyphenMatch[1]))
-      return Number.isNaN(d.getTime()) ? null : d
-    }
+    
     const slashMatch = label.match(/^([0-3]?\d)[\/](0?\d|1[0-2])[\/](\d{4})$/)
     if (slashMatch) {
       const d = new Date(Number(slashMatch[3]), Number(slashMatch[2]) - 1, Number(slashMatch[1]))
       return Number.isNaN(d.getTime()) ? null : d
     }
+    
     return null
   }
 
@@ -242,8 +273,10 @@ const lineData = computed(() => {
   if (Array.isArray(dateRange.value) && dateRange.value[0] && dateRange.value[1]) {
     const start = new Date(dateRange.value[0])
     const end = new Date(dateRange.value[1])
-    indicesToKeep = metrics.labels
-      .map((label, idx) => ({ idx, date: parseLabelDate(label) }))
+    
+    const dateMapping = metrics.labels.map((label, idx) => ({ idx, label, date: parseLabelDate(label) }))
+    
+    indicesToKeep = dateMapping
       .filter(({ date }) => date && date >= start && date <= end)
       .map(({ idx }) => idx)
   }
@@ -255,12 +288,16 @@ const lineData = computed(() => {
     data: Array.isArray(dataset.data) ? indicesToKeep.map(i => dataset.data[i]) : dataset.data,
     borderColor: dataset.backgroundColor || '#409EFF',
     backgroundColor: 'transparent',
-    tension: 0.2,
+    tension: 0.1,
     fill: false,
+    spanGaps: false,
     pointBackgroundColor: dataset.backgroundColor || '#409EFF',
     pointBorderColor: '#fff',
     pointHoverBackgroundColor: '#fff',
-    pointHoverBorderColor: dataset.backgroundColor || '#409EFF'
+    pointHoverBorderColor: dataset.backgroundColor || '#409EFF',
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    pointBorderWidth: 2
   }))
 
   return { labels: filteredLabels, datasets: enrichedDatasets }

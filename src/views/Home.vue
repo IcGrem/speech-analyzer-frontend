@@ -65,6 +65,15 @@ const chartOptions = {
     legend: {
       display: true,
       position: 'bottom',
+      onClick: (e, legendItem, legend) => {
+        const index = legendItem.index;
+        const ci = legend.chart;
+        const meta = ci.getDatasetMeta(index);
+        
+        // Переключаем видимость датасета
+        meta.hidden = !meta.hidden;
+        ci.update();
+      },
       labels: {
         usePointStyle: true,
         padding: 20,
