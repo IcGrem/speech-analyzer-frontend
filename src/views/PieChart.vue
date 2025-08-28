@@ -399,7 +399,24 @@ async function viewDialog(dialog) {
 }
 
 function formatDictionaries(value) {
+  // Если это массив
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '-'
+    return value.join(', ')
+  }
+  
+  // Если это строка
   if (typeof value === 'string' && value.trim() !== '') return value
+  
+  // Если это объект, попробуем преобразовать в строку
+  if (value && typeof value === 'object') {
+    try {
+      return JSON.stringify(value)
+    } catch (e) {
+      return String(value)
+    }
+  }
+  
   return '-'
 }
 
