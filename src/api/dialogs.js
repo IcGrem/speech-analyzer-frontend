@@ -8,6 +8,8 @@ export const getDialogs = (params = {}) => {
 		start_date,
 		end_date,
 		employee_ids,
+		dictionary_id,
+		conversation_type,
 		sort_by,
 		sort_order,
 	} = params;
@@ -21,6 +23,12 @@ export const getDialogs = (params = {}) => {
 	if (end_date) queryParams.append('end_date', String(end_date));
 	if (employee_ids && Array.isArray(employee_ids) && employee_ids.length > 0) {
 		queryParams.append('employee_ids', employee_ids.join(','));
+	}
+	if (dictionary_id) {
+		queryParams.append('dictionary_id', String(dictionary_id));
+	}
+	if (conversation_type) {
+		queryParams.append('conversation_type', String(conversation_type));
 	}
 
 	const qs = queryParams.toString();
@@ -70,4 +78,29 @@ export const getEmployeeAverageMetrics = (params) => {
 // Новое: получение деталей диалога по ID
 export const getDialogById = (dialog_id) => {
   return api.get(`/dialogs/get-dialog/${dialog_id}`);
+};
+
+// Новое: получение диалогов по словарям
+export const getDialogsByDictionaries = (params = {}) => {
+  const {
+    organization_id,
+    employee_ids,
+    start_date,
+    end_date,
+  } = params;
+
+  const queryParams = new URLSearchParams();
+  
+  if (employee_ids && Array.isArray(employee_ids) && employee_ids.length > 0) {
+    queryParams.append('employee_ids', employee_ids.join(','));
+  }
+  if (start_date) queryParams.append('start_date', String(start_date));
+  if (end_date) queryParams.append('end_date', String(end_date));
+
+  const qs = queryParams.toString();
+  const url = qs.length > 0
+    ? `/dialogs/get-dialogs-by-dictionaries?${qs}`
+    : `/dialogs/get-dialogs-by-dictionaries`;
+
+  return api.get(url);
 };

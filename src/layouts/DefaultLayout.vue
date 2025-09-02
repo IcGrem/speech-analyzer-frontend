@@ -56,6 +56,11 @@ const menu = [
     name: 'Анализ диалогов',
     path: '/pie',
     customIcon: 'favorite'
+  },
+  {
+    name: 'Словари',
+    path: '/dictionaries',
+    customIcon: 'book'
   }
 ]
 </script>

@@ -1,9 +1,9 @@
 <template>
-  <PageWrapper :title="$t('pages.pieChart.title')">
+  <PageWrapper :title="pageTitle">
     <div class="mb-6 p-4 bg-white rounded-lg shadow-sm">
       <el-form :model="filters">
-        <el-row :gutter="20"  >
-          <el-col :span="9">
+        <el-row :gutter="20">
+          <el-col :span="8">
             <el-date-picker
               v-model="filters.dateRange"
               type="daterange"
@@ -19,14 +19,15 @@
               style="width: 100%;"
             />
           </el-col>
-          <el-col :span="9">
+          <el-col :span="8">
             <el-select
               v-model="filters.employee_ids"
               multiple
               filterable
               :placeholder="$t('pages.pieChart.selectEmployees')"
               @change="handleFilterChange"
-              style="min-width: 260px;"
+              :loading="employeesLoading"
+              style="width: 100%;"
             >
               <el-option
                 v-for="employee in normalizedEmployees"
@@ -36,13 +37,67 @@
               />
             </el-select>
           </el-col>
-          <el-col :span="6">
-            <el-button type="primary" @click="handleFilterChange">
-              {{ $t('common.apply') }}
-            </el-button>
-            <el-button @click="clearFilters">
-              {{ $t('common.clear') }}
-            </el-button>
+          <el-col :span="8">
+            <el-select
+              v-model="filters.dictionary_id"
+              filterable
+              :placeholder="'Выберите словарь'"
+              @change="handleDictionaryChange"
+              clearable
+              style="min-width: 260px;"
+            >
+              <el-option
+                v-for="dictionary in dictionariesList"
+                :key="dictionary.id"
+                :label="dictionary.description"
+                :value="dictionary.id"
+              >
+                <div class="flex items-center gap-2">
+                  <div
+                    class="w-3 h-3 rounded-full"
+                    :style="{ backgroundColor: dictionary.color }"
+                  ></div>
+                  <span>{{ dictionary.description }}</span>
+                </div>
+              </el-option>
+            </el-select>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20" class="mt-4">
+          <el-col :span="8">
+            <el-select
+              v-model="filters.conversation_type"
+              filterable
+              :placeholder="'Выберите тип диалога'"
+              @change="handleFilterChange"
+              clearable
+              style="width: 100%;"
+            >
+              <el-option
+                v-for="type in conversationTypes"
+                :key="type.value"
+                :label="type.label"
+                :value="type.value"
+              >
+                <div class="flex items-center gap-2">
+                  <i :class="[type.icon, type.color]" class="text-sm"></i>
+                  <span>{{ type.label }}</span>
+                </div>
+              </el-option>
+            </el-select>
+          </el-col>
+          <el-col :span="8">
+            <!-- Пустая колонка для баланса -->
+          </el-col>
+          <el-col :span="8">
+            <div class="flex justify-end gap-2">
+              <el-button type="primary" @click="handleFilterChange">
+                {{ $t('common.apply') }}
+              </el-button>
+              <el-button @click="clearFilters">
+                {{ $t('common.clear') }}
+              </el-button>
+            </div>
           </el-col>
         </el-row>
       </el-form>
@@ -68,8 +123,51 @@
             show-overflow-tooltip
           >
             <template #default="{row}">
-              <span v-if="item.property === 'dictionaries'">
-                {{ formatDictionaries(row.dictionaries) }}
+              <span v-if="item.property === 'dialog_id'">
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-sm">{{ row.dialog_id?.slice(0, 8) }}...</span>
+                  <el-button
+                    type="text"
+                    size="small"
+                    @click="copyToClipboard(row.dialog_id)"
+                    class="text-gray-500 hover:text-blue-600"
+                  >
+                    <i class="el-icon-document-copy"></i>
+                  </el-button>
+                </div>
+              </span>
+              <span v-else-if="item.property === 'dictionaries'">
+                <div v-if="formatDictionaries(row.dictionaries).length > 0" class="flex flex-wrap gap-2">
+                  <!-- Показываем только первые 3 тега -->
+                  <el-tag
+                    v-for="(dict, index) in formatDictionaries(row.dictionaries).slice(0, 3)"
+                    :key="dict.description"
+                    size="default"
+                    effect="plain"
+                    :style="{
+                      color: dict.color,
+                      borderColor: dict.color,
+                      backgroundColor: `${dict.color}10`,
+                      fontSize: '14px',
+                      padding: '8px 12px'
+                    }"
+                  >
+                    {{ dict.description }}
+                  </el-tag>
+
+                  <!-- Показываем количество скрытых тегов -->
+                  <el-tag
+                    v-if="formatDictionaries(row.dictionaries).length > 3"
+                    type="info"
+                    size="default"
+                    effect="plain"
+                    class="cursor-pointer hover:bg-blue-50"
+                    @click="showAllDictionaries(row.dictionaries, row.dialog_id)"
+                  >
+                    +{{ formatDictionaries(row.dictionaries).length - 3 }}
+                  </el-tag>
+                </div>
+                <span v-else class="text-gray-400">—</span>
               </span>
               <span v-else-if="item.property === 'overall_score'">
                 <span class="font-semibold" :class="getScoreClass(row.overall_score)">
@@ -77,12 +175,29 @@
                 </span>
               </span>
               <span v-else-if="item.property === 'date'">
-                {{ formatDate(row.date) }}
+                {{ formatDate(row.recording_start_date || row.date) }}
+              </span>
+              <span v-else-if="item.property === 'employee_name'">
+                {{ formatEmployeeName(row) }}
+              </span>
+              <span v-else-if="item.property === 'conversation_type'">
+                <el-tooltip 
+                  :content="getConversationTypeTooltip(row.conversation_type)" 
+                  placement="top"
+                  :show-after="500"
+                >
+                  <div class="flex items-center gap-2 cursor-help">
+                    <i :class="[formatConversationType(row.conversation_type).icon, formatConversationType(row.conversation_type).color]" class="text-sm"></i>
+                    <span class="font-medium text-sm" :class="formatConversationType(row.conversation_type).color">
+                      {{ formatConversationType(row.conversation_type).text }}
+                    </span>
+                  </div>
+                </el-tooltip>
               </span>
               <span v-else-if="item.property === 'actions'">
-                <el-button 
-                  type="primary" 
-                  size="small" 
+                <el-button
+                  type="primary"
+                  size="small"
                   @click="viewDialog(row)"
                 >
                   {{ $t('common.view') }}
@@ -117,9 +232,9 @@
     <!-- Модальное окно просмотра -->
     <el-dialog
       v-model="dialogVisible"
-      id="lbfkjuf"
-      :title="$t('common.view')"
-      width="600px"
+      :title="`Детали диалога ${selectedDialog?.dialog_id || ''}`"
+      width="80%"
+      :before-close="handleClose"
     >
       <div v-if="dialogDetailsLoading">{{ $t('common.loading') }}</div>
       <div v-else-if="selectedDialog">
@@ -131,8 +246,14 @@
                 <span>{{ msg.speaker }}</span>
                 <span>{{ formatDate(msg.timestamp) }}</span>
               </div>
-              <div class="mt-1 whitespace-pre-wrap">{{ msg.message }}</div>
+              <div class="mt-1 whitespace-pre-wrap" v-html="msg.message"></div>
             </div>
+          </div>
+        </div>
+        <div v-else-if="selectedDialog?.conversation && typeof selectedDialog.conversation === 'string'" class="mt-4">
+          <p class="font-semibold mb-2">Полный контент</p>
+          <div class="max-h-80 overflow-auto p-3 bg-gray-50 rounded border">
+            <div v-html="selectedDialog.conversation" class="conversation-html"></div>
           </div>
         </div>
       </div>
@@ -140,12 +261,54 @@
         <el-button @click="dialogVisible = false">{{ $t('common.close') }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- Модальное окно для показа всех словарей -->
+    <el-dialog
+      v-model="dictionariesModalVisible"
+      :title="`Все словари для диалога ${selectedDialogId || ''}`"
+      width="60%"
+      :before-close="handleDictionariesModalClose"
+    >
+      <div class="p-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div
+            v-for="dict in selectedDictionaries"
+            :key="dict.description"
+            class="p-4 border rounded-lg hover:shadow-md transition-shadow"
+            :style="{
+              borderColor: dict.color,
+              backgroundColor: `${dict.color}05`
+            }"
+          >
+            <div class="flex items-center gap-3">
+              <div
+                class="w-4 h-4 rounded-full"
+                :style="{ backgroundColor: dict.color }"
+              ></div>
+              <span
+                class="font-medium"
+                :style="{ color: dict.color }"
+              >
+                {{ dict.description }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex justify-end">
+          <el-button @click="handleDictionariesModalClose">Закрыть</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </PageWrapper>
 </template>
 
 <script setup>
 import PageWrapper from '@/components/PageWrapper.vue'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useLocalization } from '@/composables/useI18n'
 import { useDialogsStore } from '@/store/dialogs'
 import { useEmployeeStore } from '@/store/employees'
@@ -154,6 +317,8 @@ import { storeToRefs } from 'pinia'
 import { formatDateTime as formatDateTimeUtil } from '@/utils'
 import { getDialogById } from '@/api/dialogs'
 
+const route = useRoute()
+const router = useRouter()
 const { t } = useLocalization()
 const dialogsStore = useDialogsStore()
 const employeeStore = useEmployeeStore()
@@ -162,6 +327,11 @@ const employeeStore = useEmployeeStore()
 const dialogVisible = ref(false)
 const selectedDialog = ref(null)
 const dialogDetailsLoading = ref(false)
+
+// Состояние для модального окна словарей
+const dictionariesModalVisible = ref(false)
+const selectedDictionaries = ref([])
+const selectedDialogId = ref('')
 
 // Дата по умолчанию для открытия пикера на июле 2025
 const defaultPickerMonth = new Date(2025, 6, 1)
@@ -174,7 +344,7 @@ function disableOutsideJuly2025(date) {
 }
 
 // Достаём реактивные поля как refs из stores
-const { 
+const {
   dialogs,
   loading,
   pagination,
@@ -194,8 +364,36 @@ const { fetchEmployees } = employeeStore
 const filters = ref({
   dateRange: null,
   employee_ids: [],
+  dictionary_id: null,
+  conversation_type: null,
   sort_by: 'recording_start_date',
   sort_order: 'desc'
+})
+
+// Список словарей для селекта (будет загружаться с API)
+const dictionariesList = ref([])
+
+// Типы диалогов для селекта
+const conversationTypes = ref([
+  { value: 'm2m', label: 'Менеджер → Менеджер', icon: 'el-icon-user-solid', color: 'text-blue-600' },
+  { value: 'm2c', label: 'Менеджер → Клиент', icon: 'el-icon-service', color: 'text-green-600' },
+  { value: 'unknown', label: 'Неизвестный', icon: 'el-icon-question', color: 'text-gray-500' }
+])
+
+// Проверяем параметры из URL для фильтрации по словарю
+const dictionaryFilter = computed(() => {
+  return {
+    id: route.query.dictionary_id,
+    name: route.query.dictionary_name
+  }
+})
+
+// Обновляем заголовок страницы если есть фильтр по словарю
+const pageTitle = computed(() => {
+  if (dictionaryFilter.value.id) {
+    return `${t('pages.pieChart.title')} - ${dictionaryFilter.value.name}`
+  }
+  return t('pages.pieChart.title')
 })
 
 // Локальная копия пагинации для реактивности
@@ -224,11 +422,113 @@ const normalizedEmployees = computed(() => {
   })
 })
 
+// Удаляем ненужную функцию normalizedConversation
+
+// Функция для парсинга разговора
+function parseConversation(text) {
+  if (!text || typeof text !== 'string') return []
+
+  const messages = []
+
+  // Ищем блок диалога в формате ``` ```
+  const dialogMatch = text.match(/```\s*([\s\S]*?)\s*```/)
+
+  if (dialogMatch) {
+    const dialogContent = dialogMatch[1]
+    const lines = dialogContent.split('\n')
+    let currentSpeaker = ''
+    let currentMessage = ''
+
+    for (const line of lines) {
+      const trimmedLine = line.trim()
+      if (!trimmedLine) continue
+
+      // Ищем паттерны типа "Клиент:", "Менеджер:", "Колега1:", "Колега2:" и т.д.
+      const speakerMatch = trimmedLine.match(/^([^:]+):\s*(.*)/)
+
+      if (speakerMatch) {
+        // Если у нас есть предыдущее сообщение, сохраняем его
+        if (currentSpeaker && currentMessage.trim()) {
+          messages.push({
+            speaker: currentSpeaker,
+            message: currentMessage.trim(),
+            timestamp: ''
+          })
+        }
+
+        // Начинаем новое сообщение
+        currentSpeaker = speakerMatch[1].trim()
+        currentMessage = speakerMatch[2] || ''
+      } else {
+        // Продолжение предыдущего сообщения
+        if (currentSpeaker) {
+          currentMessage += (currentMessage ? '\n' : '') + trimmedLine
+        }
+      }
+    }
+
+    // Добавляем последнее сообщение
+    if (currentSpeaker && currentMessage.trim()) {
+      messages.push({
+        speaker: currentSpeaker,
+        message: currentMessage.trim(),
+        timestamp: ''
+      })
+    }
+  }
+
+  // Если не нашли диалог в блоках кода, попробуем найти в обычном тексте
+  if (messages.length === 0) {
+    const lines = text.split('\n')
+    let currentSpeaker = ''
+    let currentMessage = ''
+
+    for (const line of lines) {
+      const trimmedLine = line.trim()
+      if (!trimmedLine) continue
+
+      // Ищем паттерны типа "Клиент:", "Менеджер:" и т.д.
+      const speakerMatch = trimmedLine.match(/^([^:]+):\s*(.*)/)
+
+      if (speakerMatch) {
+        // Если у нас есть предыдущее сообщение, сохраняем его
+        if (currentSpeaker && currentMessage.trim()) {
+          messages.push({
+            speaker: currentSpeaker,
+            message: currentMessage.trim(),
+            timestamp: ''
+          })
+        }
+
+        // Начинаем новое сообщение
+        currentSpeaker = speakerMatch[1].trim()
+        currentMessage = speakerMatch[2] || ''
+      } else {
+        // Продолжение предыдущего сообщения
+        if (currentSpeaker) {
+          currentMessage += (currentMessage ? '\n' : '') + trimmedLine
+        }
+      }
+    }
+
+    // Добавляем последнее сообщение
+    if (currentSpeaker && currentMessage.trim()) {
+      messages.push({
+        speaker: currentSpeaker,
+        message: currentMessage.trim(),
+        timestamp: ''
+      })
+    }
+  }
+
+  return messages
+}
+
 // Нормализованный разговор для модалки
 const normalizedConversation = computed(() => {
   const raw = selectedDialog.value?.conversation
-  if (!raw) return []
-  
+  if (!raw || typeof raw !== 'string') return []
+
   // Если это массив (JSON), обрабатываем как раньше
   if (Array.isArray(raw)) {
     return raw.map(m => ({
@@ -237,7 +537,7 @@ const normalizedConversation = computed(() => {
       timestamp: m.timestamp ?? ''
     }))
   }
-  
+
   // Если это строка, пытаемся парсить как JSON
   if (typeof raw === 'string') {
     try {
@@ -250,92 +550,154 @@ const normalizedConversation = computed(() => {
         }))
       }
     } catch (e) {
-      // Если не JSON, обрабатываем как текстовый разговор
-      return parseTextConversation(raw)
+      // Если не JSON, парсим как текстовый разговор
+      const parsedMessages = parseConversation(raw)
+      return parsedMessages
     }
   }
-  
+
   return []
 })
 
-// Функция для парсинга текстового разговора
-function parseTextConversation(text) {
-  if (!text || typeof text !== 'string') return []
-  
-  const messages = []
-  const lines = text.split('\n')
-  let currentSpeaker = ''
-  let currentMessage = ''
-  
-  for (const line of lines) {
-    const trimmedLine = line.trim()
-    if (!trimmedLine) continue
-    
-    // Ищем паттерны типа "Колега1:", "Колега2:", "Спикер:" и т.д.
-    const speakerMatch = trimmedLine.match(/^([^:]+):\s*(.*)/)
-    
-    if (speakerMatch) {
-      // Если у нас есть предыдущее сообщение, сохраняем его
-      if (currentSpeaker && currentMessage.trim()) {
-        messages.push({
-          speaker: currentSpeaker,
-          message: currentMessage.trim(),
-          timestamp: ''
-        })
-      }
-      
-      // Начинаем новое сообщение
-      currentSpeaker = speakerMatch[1].trim()
-      currentMessage = speakerMatch[2] || ''
-    } else {
-      // Продолжение предыдущего сообщения
-      if (currentSpeaker) {
-        currentMessage += (currentMessage ? '\n' : '') + trimmedLine
-      }
-    }
+// Функция для форматирования типов диалогов
+function formatConversationType(type) {
+  if (!type) return { text: '—', color: 'text-gray-400', icon: 'el-icon-question' }
+
+  const typeMap = {
+    'm2m': { text: 'Менеджер → Менеджер', color: 'text-blue-600', icon: 'el-icon-user-solid' },
+    'm2c': { text: 'Менеджер → Клиент', color: 'text-green-600', icon: 'el-icon-service' },
+    'unknown': { text: 'Неизвестный', color: 'text-gray-500', icon: 'el-icon-question' }
   }
-  
-  // Добавляем последнее сообщение
-  if (currentSpeaker && currentMessage.trim()) {
-    messages.push({
-      speaker: currentSpeaker,
-      message: currentMessage.trim(),
-      timestamp: ''
-    })
+
+  return typeMap[type.toLowerCase()] || { text: type, color: 'text-gray-700', icon: 'el-icon-chat-dot-round' }
+}
+
+// Функция для создания подсказок типов диалогов
+function getConversationTypeTooltip(type) {
+  if (!type) return 'Тип диалога не определен'
+
+  const tooltipMap = {
+    'm2m': 'Диалог между менеджерами (Manager to Manager)',
+    'm2c': 'Диалог менеджера с клиентом (Manager to Client)',
+    'unknown': 'Тип диалога не определен или неизвестен'
   }
-  
-  return messages
+
+  return tooltipMap[type.toLowerCase()] || `Тип диалога: ${type}`
 }
 
 // Заголовки: включаем сортировку по клику на заголовок
 const tableHeader = computed(() => [
+  { property: 'dialog_id', label: t('pages.pieChart.dialogNumber'), sortable: false, width: '200' },
   { property: 'date', label: t('pages.pieChart.date'), sortable: 'custom', width: '150' },
   { property: 'employee_name', label: t('pages.pieChart.employee'), width: '250', sortable: 'custom'},
-  { property: 'dialog_id', label: t('pages.pieChart.dialogNumber'), sortable: false, width: '200' },
-  { property: 'conversation_type', label: t('pages.pieChart.conversationType'), sortable: false, width: '120' },
+  { property: 'conversation_type', label: t('pages.pieChart.conversationType'), sortable: false, width: '190' },
   { property: 'overall_score', label: t('pages.pieChart.metrics'), sortable: 'custom', width: '170', align: 'center' },
-  { property: 'dictionaries', label: t('pages.pieChart.dictionary'), sortable: false, width: '120', align: 'center' },
+  { property: 'dictionaries', label: t('pages.pieChart.dictionary'), sortable: false, width: '200', align: 'center' },
   { property: 'actions', label: t('pages.pieChart.link'), width: '120', align: 'right', sortable: false },
 ])
 
 // Обработчики событий
-function handleFilterChange() {
-  localPagination.value.currentPage = 1
-  updateStorePagination({ currentPage: 1 })
-  updateStoreFilters(filters.value)
+// Обработчик изменения словаря
+function handleDictionaryChange() {
+  // Обновляем store фильтры
+  updateStoreFilters({
+    dictionary_id: filters.value.dictionary_id,
+    conversation_type: filters.value.conversation_type
+  })
+  
+  // Обновляем URL параметры
+  const newQuery = { ...route.query }
+  if (filters.value.dictionary_id) {
+    newQuery.dictionary_id = filters.value.dictionary_id
+    // Не устанавливаем автоматически conversation_type
+  } else {
+    delete newQuery.dictionary_id
+    delete newQuery.conversation_type
+  }
+  router.push({ query: newQuery })
+  
+  // Загружаем диалоги
   loadDialogs()
 }
 
+// Функция копирования в буфер обмена
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    // Можно добавить уведомление об успешном копировании
+    console.log('ID диалога скопирован:', text)
+  } catch (err) {
+    console.error('Ошибка при копировании:', err)
+    // Fallback для старых браузеров
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    document.body.appendChild(textArea)
+    textArea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textArea)
+  }
+}
+
+// Функция показа всех словарей
+function showAllDictionaries(dictionaries, dialogId) {
+  selectedDictionaries.value = formatDictionaries(dictionaries)
+  selectedDialogId.value = dialogId
+  dictionariesModalVisible.value = true
+}
+
+// Закрытие модального окна словарей
+function handleDictionariesModalClose() {
+  dictionariesModalVisible.value = false
+  selectedDictionaries.value = []
+  selectedDialogId.value = ''
+}
+
+// Обработчик изменения фильтров
+function handleFilterChange() {
+  // Применяем фильтры
+  const storeFiltersUpdate = {
+    start_date: filters.value.dateRange?.[0] || null,
+    end_date: filters.value.dateRange?.[1] || null,
+    employee_ids: filters.value.employee_ids || [],
+    dictionary_id: filters.value.dictionary_id || null,
+    conversation_type: filters.value.conversation_type || null
+  }
+  
+  // Обновляем store фильтры
+  updateStoreFilters(storeFiltersUpdate)
+  
+  // Сбрасываем на первую страницу
+  localPagination.value.currentPage = 1
+  updateStorePagination({ currentPage: 1 })
+  
+  // Загружаем диалоги
+  loadDialogs()
+}
+
+// Очистка фильтров
 function clearFilters() {
   filters.value = {
     dateRange: null,
     employee_ids: [],
+    dictionary_id: null,
+    conversation_type: null,
     sort_by: 'recording_start_date',
     sort_order: 'desc'
   }
-  localPagination.value.currentPage = 1
-  updateStoreFilters(filters.value)
-  updateStorePagination({ currentPage: 1 })
+  
+  // Очищаем store фильтры
+  updateStoreFilters({
+    start_date: null,
+    end_date: null,
+    employee_ids: [],
+    dictionary_id: null,
+    conversation_type: null
+  })
+  
+  // Очищаем URL параметры
+  router.push({ query: {} })
+  
+  // Загружаем диалоги
   loadDialogs()
 }
 
@@ -358,6 +720,7 @@ function handleSortChange({ prop, order }) {
   if (prop === 'employee_name') sortBy = 'employee_name'
   if (prop === 'overall_score') sortBy = 'overall_score'
   if (prop === 'date') sortBy = 'recording_start_date'
+  if (prop === 'conversation_type') sortBy = 'conversation_type'
   const sortOrder = order === 'ascending' ? 'asc' : 'desc'
   filters.value.sort_by = sortBy
   filters.value.sort_order = sortOrder
@@ -399,30 +762,39 @@ async function viewDialog(dialog) {
 }
 
 function formatDictionaries(value) {
-  // Если это массив
-  if (Array.isArray(value)) {
-    if (value.length === 0) return '-'
-    return value.join(', ')
+  // Если это массив словарей с цветами и описаниями
+  if (Array.isArray(value) && value.length > 0) {
+    return value.map(dict => ({
+      color: dict.color,
+      description: dict.description
+    }))
   }
-  
+
+  // Если это пустой массив
+  if (Array.isArray(value) && value.length === 0) return []
+
   // Если это строка
-  if (typeof value === 'string' && value.trim() !== '') return value
-  
-  // Если это объект, попробуем преобразовать в строку
+  if (typeof value === 'string' && value.trim() !== '') return [{ color: '#6B7280', description: value }]
+
+  // Если это объект, попробуем преобразовать
   if (value && typeof value === 'object') {
     try {
-      return JSON.stringify(value)
+      return [{ color: '#6B7280', description: JSON.stringify(value) }]
     } catch (e) {
-      return String(value)
+      return [{ color: '#6B7280', description: String(value) }]
     }
   }
-  
-  return '-'
+
+  return []
 }
 
 function getScoreClass(score) {
   const numeric = Number(score)
   if (Number.isNaN(numeric)) return ''
+
+  // Оценка 0 делаем серой
+  if (numeric === 0) return 'text-gray-500'
+
   if (numeric <= 1) return 'text-red-600'
   if (numeric <= 2) return 'text-orange-600'
   if (numeric <= 3) return 'text-yellow-600'
@@ -432,6 +804,23 @@ function getScoreClass(score) {
 
 function formatDate(dateString) {
   return formatDateTimeUtil(dateString, 'ru-RU')
+}
+
+function formatEmployeeName(row) {
+  // Если есть вложенный объект employee
+  if (row.employee) {
+    const first = row.employee.first_name || ''
+    const last = row.employee.last_name || ''
+    const name = `${first} ${last}`.trim()
+    return name || '—'
+  }
+
+  // Если есть прямое поле employee_name
+  if (row.employee_name) {
+    return row.employee_name
+  }
+
+  return '—'
 }
 
 async function loadDialogs() {
@@ -444,32 +833,106 @@ async function loadDialogs() {
   }
 }
 
-// ВОССТАНОВЛЕНО: загрузка сотрудников
-async function loadEmployees() {
-  try {
-    await fetchEmployees()
-  } catch (error) {
-    console.error('Ошибка загрузки сотрудников:', error)
-  }
-}
-
-watch(storeFilters, (newFilters) => {
-  if (newFilters?.start_date && newFilters?.end_date) {
-    filters.value.dateRange = [newFilters.start_date, newFilters.end_date]
-  } else {
-    filters.value.dateRange = null
-  }
+// Синхронизируем локальные фильтры с store
+function updateLocalFilters(newFilters) {
+  if (!newFilters) return
+  
+  filters.value.dateRange = newFilters.start_date && newFilters.end_date 
+    ? [newFilters.start_date, newFilters.end_date] 
+    : null
   filters.value.employee_ids = newFilters?.employee_ids || []
+  filters.value.dictionary_id = newFilters?.dictionary_id || null
+  filters.value.conversation_type = newFilters?.conversation_type || null
   filters.value.sort_by = newFilters?.sort_by || 'recording_start_date'
   filters.value.sort_order = newFilters?.sort_order || 'desc'
-}, { deep: true })
+}
 
-onMounted(async () => {
-  await Promise.all([
-    loadEmployees(),
+// Следим за изменением store фильтров
+watch(storeFilters, (newFilters) => {
+  updateLocalFilters(newFilters)
+}, { deep: true, immediate: true })
+
+// Следим за изменением фильтра по словарю из URL
+watch(dictionaryFilter, async (newFilter) => {
+  if (newFilter.id) {
+    // Устанавливаем фильтр по словарю из URL
+    filters.value.dictionary_id = newFilter.id
+    updateStoreFilters({ dictionary_id: newFilter.id })
+    await fetchDialogs()
+  }
+}, { immediate: true })
+
+// Загрузка данных при монтировании
+onMounted(() => {
+  console.log('onMounted called')
+  
+  // Загружаем словари для селекта
+  loadDictionaries()
+  
+  // Получаем параметры из URL
+  const routeQuery = route.query
+  console.log('route.query:', routeQuery)
+  
+  if (routeQuery.dictionary_id && routeQuery.dictionary_name) {
+    // Устанавливаем фильтр по словарю
+    dictionaryFilter.value = {
+      id: routeQuery.dictionary_id,
+      name: routeQuery.dictionary_name
+    }
+    
+    console.log('dictionaryFilter.value:', dictionaryFilter.value)
+    
+    // Применяем фильтр по словарю
+    console.log('onMounted - Applying dictionary filter:', dictionaryFilter.value.id)
+    
+    // Автоматически устанавливаем тип диалога "Менеджер → Клиент" 
+    // только если переходим со страницы словарей
+    filters.value.conversation_type = 'm2c'
+    
+    // Обновляем store фильтры
+    updateStoreFilters({
+      dictionary_id: dictionaryFilter.value.id,
+      conversation_type: 'm2c'
+    })
+    
+    // Обновляем URL параметры
+    router.push({
+      query: {
+        ...routeQuery,
+        conversation_type: 'm2c'
+      }
+    })
+    
+    // Загружаем диалоги с новыми фильтрами
     loadDialogs()
-  ])
+  } else {
+    // Если просто заходим на страницу без параметров словаря,
+    // то фильтр по типу диалога должен быть пустым
+    filters.value.conversation_type = null
+    
+    // Обновляем store фильтры (без conversation_type)
+    updateStoreFilters({
+      dictionary_id: null,
+      conversation_type: null
+    })
+    
+    // Загружаем диалоги без фильтра по типу диалога
+    loadDialogs()
+  }
 })
+
+// Загрузка словарей для селекта
+async function loadDictionaries() {
+  try {
+    // Загружаем словари из store
+    const response = await dialogsStore.fetchDialogsByDictionaries()
+    if (response && response.data) {
+      dictionariesList.value = response.data
+    }
+  } catch (error) {
+    console.error('Ошибка при загрузке словарей:', error)
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -477,5 +940,28 @@ onMounted(async () => {
   text-align: center;
   color: #909399;
   padding: 20px;
+}
+
+:deep(.conversation-html) {
+  span {
+    display: inline-block;
+  }
+
+  p {
+    margin-bottom: 0.5rem;
+  }
+
+  pre {
+    background-color: #f5f5f5;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+  }
+}
+
+:deep(.whitespace-pre-wrap) {
+  span {
+    display: inline-block;
+  }
 }
 </style>

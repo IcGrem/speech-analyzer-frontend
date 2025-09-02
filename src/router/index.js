@@ -84,6 +84,15 @@ const routes = [
           requiresAuth: true
         }
       },
+      {
+        path: '/dictionaries',
+        name: 'Dictionaries',
+        component: () => import('@/views/Dictionaries.vue'),
+        meta: { 
+          transition: 'slide-left',
+          requiresAuth: true
+        }
+      },
     ]
   },
   {

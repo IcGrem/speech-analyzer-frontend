@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getDialogs, getEmployeeMetrics, getEmployeeAverageMetrics } from '@/api/dialogs'
+import { getDialogs, getEmployeeMetrics, getEmployeeAverageMetrics, getDialogsByDictionaries } from '@/api/dialogs'
 import { ErrorHandler } from '@/utils/errorHandler'
 import { useAuthStore } from '@/store/auth'
 
@@ -22,6 +22,8 @@ export const useDialogsStore = defineStore('dialogs', () => {
     start_date: null,
     end_date: null,
     employee_ids: [],
+    dictionary_id: null,
+    conversation_type: null,
     sort_by: 'recording_start_date',
     sort_order: 'desc'
   })
@@ -36,6 +38,11 @@ export const useDialogsStore = defineStore('dialogs', () => {
   const employeeAverageLoading = ref(false)
   const employeeAverageError = ref(null)
 
+  // Новое: диалоги по словарям
+  const dialogsByDictionaries = ref(null)
+  const dialogsByDictionariesLoading = ref(false)
+  const dialogsByDictionariesError = ref(null)
+
   // Getters
   const dialogsList = computed(() => dialogs.value || [])
   const hasDialogs = computed(() => dialogs.value && dialogs.value.length > 0)
@@ -46,6 +53,11 @@ export const useDialogsStore = defineStore('dialogs', () => {
   const hasMetrics = computed(() => employeeMetrics.value && employeeMetrics.value.length > 0)
   const metricsCount = computed(() => employeeMetrics.value?.length || 0)
 
+  // Getters для диалогов по словарям
+  const dialogsByDictionariesList = computed(() => dialogsByDictionaries.value || [])
+  const hasDialogsByDictionaries = computed(() => dialogsByDictionaries.value && dialogsByDictionaries.value.length > 0)
+  const dialogsByDictionariesCount = computed(() => dialogsByDictionaries.value?.length || 0)
+
   // Actions
   const clearError = () => {
     error.value = null
@@ -53,6 +65,7 @@ export const useDialogsStore = defineStore('dialogs', () => {
 
   const updateFilters = (newFilters) => {
     filters.value = { ...filters.value, ...newFilters }
+    
     // Сбрасываем на первую страницу при изменении фильтров
     pagination.value.currentPage = 1
   }
@@ -86,43 +99,34 @@ export const useDialogsStore = defineStore('dialogs', () => {
         start_date: filters.value.start_date,
         end_date: filters.value.end_date,
         employee_ids: filters.value.employee_ids,
+        dictionary_id: filters.value.dictionary_id,
+        conversation_type: filters.value.conversation_type,
         ...params
       }
       
-      console.log('Store: fetchDialogs called with params:', requestParams)
-      
       const response = await getDialogs(requestParams)
-      
-      console.log('Store: API response received:', response)
       
       if (response && response.data) {
         // Обрабатываем реальную структуру ответа API
         const apiData = response.data
         
-        console.log('Store: API data:', apiData)
-        
         if (apiData.data && Array.isArray(apiData.data)) {
           dialogs.value = apiData.data
           pagination.value.total = apiData.total_count || 0
           pagination.value.pageSize = apiData.size || 10
-          console.log('Store: dialogs updated, length:', dialogs.value.length)
         } else if (Array.isArray(apiData)) {
           dialogs.value = apiData
           pagination.value.total = apiData.length
-          console.log('Store: dialogs updated (direct array), length:', dialogs.value.length)
         } else {
           dialogs.value = []
           pagination.value.total = 0
-          console.log('Store: dialogs set to empty array')
         }
       } else {
         dialogs.value = []
         pagination.value.total = 0
-        console.log('Store: no response data, dialogs set to empty')
       }
     } catch (err) {
       error.value = err.response?.data?.message || err.message
-      console.error('Store: Error in fetchDialogs:', err)
       ErrorHandler.handleApiError(err, 'Загрузка диалогов')
       // При ошибке устанавливаем пустой массив
       dialogs.value = []
@@ -345,6 +349,7 @@ export const useDialogsStore = defineStore('dialogs', () => {
 
     const datasets = []
     const employeeNames = ['Иванов Иван', 'Петрова Анна', 'Сидоров Алексей', 'Козлова Мария', 'Морозов Дмитрий']
+    const employeeIds = ['emp001', 'emp002', 'emp003', 'emp004', 'emp005']
     const colors = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399']
 
     employeeNames.forEach((name, index) => {
@@ -371,6 +376,51 @@ export const useDialogsStore = defineStore('dialogs', () => {
     }
   }
 
+  // Новое: получение диалогов по словарям
+  const fetchDialogsByDictionaries = async (params = {}) => {
+    try {
+      dialogsByDictionariesLoading.value = true
+      dialogsByDictionariesError.value = null
+      
+      // Получаем organization_id из auth store
+      const authStore = useAuthStore()
+      const organizationId = authStore.organizationId || 
+                           authStore.user?.organization_id || 
+                           sessionStorage.getItem('organizationId')
+      
+      if (!organizationId) {
+        throw new Error('Organization ID not found')
+      }
+      
+      // Объединяем параметры из состояния с переданными параметрами
+      const requestParams = {
+        organization_id: organizationId,
+        start_date: filters.value.start_date,
+        end_date: filters.value.end_date,
+        employee_ids: filters.value.employee_ids,
+        ...params
+      }
+      
+      const response = await getDialogsByDictionaries(requestParams)
+      
+      if (response && response.data) {
+        dialogsByDictionaries.value = response.data
+      } else {
+        dialogsByDictionaries.value = []
+      }
+      
+      // ВАЖНО: Возвращаем ответ для компонента
+      return response
+      
+    } catch (err) {
+      dialogsByDictionariesError.value = err.response?.data?.message || err.message
+      ErrorHandler.handleApiError(err, 'Загрузка диалогов по словарям', { notify: false })
+      throw err
+    } finally {
+      dialogsByDictionariesLoading.value = false
+    }
+  }
+
   return { 
     // State
     dialogs, 
@@ -393,6 +443,11 @@ export const useDialogsStore = defineStore('dialogs', () => {
     employeeAverageLoading,
     employeeAverageError,
     
+    // Новое: диалоги по словарям
+    dialogsByDictionaries,
+    dialogsByDictionariesLoading,
+    dialogsByDictionariesError,
+    
     // Getters
     dialogsList,
     hasDialogs,
@@ -403,6 +458,11 @@ export const useDialogsStore = defineStore('dialogs', () => {
     hasMetrics,
     metricsCount,
     
+    // Getters для диалогов по словарям
+    dialogsByDictionariesList,
+    hasDialogsByDictionaries,
+    dialogsByDictionariesCount,
+    
     // Actions
     clearError,
     updateFilters,
@@ -411,6 +471,7 @@ export const useDialogsStore = defineStore('dialogs', () => {
     refreshDialogs,
     fetchEmployeeMetrics,
     fetchEmployeeAverageMetrics,
+    fetchDialogsByDictionaries,
     initializeWithSampleData,
     initializeWithSampleEmployeeMetrics
   }
