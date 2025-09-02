@@ -239,21 +239,17 @@
       <div v-if="dialogDetailsLoading">{{ $t('common.loading') }}</div>
       <div v-else-if="selectedDialog">
         <div v-if="normalizedConversation.length" class="mt-4">
-          <p class="font-semibold mb-2">Разговор</p>
+          <p class="font-semibold mb-2 text-gray-800">Разговор</p>
           <div class="max-h-80 overflow-auto space-y-3">
-            <div v-for="(msg, idx) in normalizedConversation" :key="idx" class="p-3 rounded border">
-              <div class="text-sm text-gray-500 flex justify-between">
-                <span>{{ msg.speaker }}</span>
-                <span>{{ formatDate(msg.timestamp) }}</span>
-              </div>
-              <div class="mt-1 whitespace-pre-wrap" v-html="msg.message"></div>
+            <div v-for="(msg, idx) in normalizedConversation" :key="idx" class="p-3 rounded border border-gray-200 bg-white hover:bg-gray-50 transition-colors">
+              <div class="text-sm text-gray-800 leading-relaxed" v-html="msg.message"></div>
             </div>
           </div>
         </div>
         <div v-else-if="selectedDialog?.conversation && typeof selectedDialog.conversation === 'string'" class="mt-4">
-          <p class="font-semibold mb-2">Полный контент</p>
-          <div class="max-h-80 overflow-auto p-3 bg-gray-50 rounded border">
-            <div v-html="selectedDialog.conversation" class="conversation-html"></div>
+          <p class="font-semibold mb-2 text-gray-800">Полный контент</p>
+          <div class="max-h-80 overflow-auto p-4 bg-gray-50 rounded border border-gray-200">
+            <div class="whitespace-pre-wrap text-gray-800 leading-relaxed font-mono text-sm" v-html="selectedDialog.conversation"></div>
           </div>
         </div>
       </div>
@@ -328,6 +324,15 @@ const dialogVisible = ref(false)
 const selectedDialog = ref(null)
 const dialogDetailsLoading = ref(false)
 
+// Получаем employeesLoading из store
+const { employeesList, loading: employeesLoading } = storeToRefs(employeeStore)
+
+// Функция закрытия модального окна
+function handleClose() {
+  dialogVisible.value = false
+  selectedDialog.value = null
+}
+
 // Состояние для модального окна словарей
 const dictionariesModalVisible = ref(false)
 const selectedDictionaries = ref([])
@@ -357,7 +362,6 @@ const {
   fetchDialogs
 } = dialogsStore
 
-const { employeesList } = storeToRefs(employeeStore)
 const { fetchEmployees } = employeeStore
 
 // Локальные фильтры для синхронизации с хранилищем
@@ -422,140 +426,44 @@ const normalizedEmployees = computed(() => {
   })
 })
 
-// Удаляем ненужную функцию normalizedConversation
-
-// Функция для парсинга разговора
-function parseConversation(text) {
-  if (!text || typeof text !== 'string') return []
-
-  const messages = []
-
-  // Ищем блок диалога в формате ``` ```
-  const dialogMatch = text.match(/```\s*([\s\S]*?)\s*```/)
-
-  if (dialogMatch) {
-    const dialogContent = dialogMatch[1]
-    const lines = dialogContent.split('\n')
-    let currentSpeaker = ''
-    let currentMessage = ''
-
-    for (const line of lines) {
-      const trimmedLine = line.trim()
-      if (!trimmedLine) continue
-
-      // Ищем паттерны типа "Клиент:", "Менеджер:", "Колега1:", "Колега2:" и т.д.
-      const speakerMatch = trimmedLine.match(/^([^:]+):\s*(.*)/)
-
-      if (speakerMatch) {
-        // Если у нас есть предыдущее сообщение, сохраняем его
-        if (currentSpeaker && currentMessage.trim()) {
-          messages.push({
-            speaker: currentSpeaker,
-            message: currentMessage.trim(),
-            timestamp: ''
-          })
-        }
-
-        // Начинаем новое сообщение
-        currentSpeaker = speakerMatch[1].trim()
-        currentMessage = speakerMatch[2] || ''
-      } else {
-        // Продолжение предыдущего сообщения
-        if (currentSpeaker) {
-          currentMessage += (currentMessage ? '\n' : '') + trimmedLine
-        }
-      }
-    }
-
-    // Добавляем последнее сообщение
-    if (currentSpeaker && currentMessage.trim()) {
-      messages.push({
-        speaker: currentSpeaker,
-        message: currentMessage.trim(),
-        timestamp: ''
-      })
-    }
+// Функция для очистки HTML тегов и форматирования сообщений
+function cleanAndFormatMessage(message) {
+  if (!message || typeof message !== 'string') return ''
+  
+  // Убираем HTML теги, но сохраняем содержимое
+  let cleaned = message
+    .replace(/<[^>]*>/g, '') // Убираем все HTML теги
+    .replace(/&lt;/g, '<') // Декодируем HTML entities
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\*\*/g, '') // Убираем markdown **
+    .replace(/\*/g, '') // Убираем markdown *
+    .replace(/`/g, '') // Убираем markdown `
+    .replace(/#{1,6}\s/g, '') // Убираем markdown заголовки
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Заменяем markdown ссылки на текст
+    .replace(/\s+/g, ' ') // Убираем лишние пробелы
+    .replace(/\n\s*\n/g, '\n') // Убираем пустые строки
+    .trim()
+  
+  // Если сообщение содержит информацию о типе разговора, форматируем его
+  if (cleaned.includes('Тип разговора:')) {
+    cleaned = cleaned.replace(/Тип разговора:\s*/, '')
   }
-
-  // Если не нашли диалог в блоках кода, попробуем найти в обычном тексте
-  if (messages.length === 0) {
-    const lines = text.split('\n')
-    let currentSpeaker = ''
-    let currentMessage = ''
-
-    for (const line of lines) {
-      const trimmedLine = line.trim()
-      if (!trimmedLine) continue
-
-      // Ищем паттерны типа "Клиент:", "Менеджер:" и т.д.
-      const speakerMatch = trimmedLine.match(/^([^:]+):\s*(.*)/)
-
-      if (speakerMatch) {
-        // Если у нас есть предыдущее сообщение, сохраняем его
-        if (currentSpeaker && currentMessage.trim()) {
-          messages.push({
-            speaker: currentSpeaker,
-            message: currentMessage.trim(),
-            timestamp: ''
-          })
-        }
-
-        // Начинаем новое сообщение
-        currentSpeaker = speakerMatch[1].trim()
-        currentMessage = speakerMatch[2] || ''
-      } else {
-        // Продолжение предыдущего сообщения
-        if (currentSpeaker) {
-          currentMessage += (currentMessage ? '\n' : '') + trimmedLine
-        }
-      }
-    }
-
-    // Добавляем последнее сообщение
-    if (currentSpeaker && currentMessage.trim()) {
-      messages.push({
-        speaker: currentSpeaker,
-        message: currentMessage.trim(),
-        timestamp: ''
-      })
-    }
-  }
-
-  return messages
+  
+  // Убираем лишние разделители в конце
+  cleaned = cleaned.replace(/---\s*$/, '')
+  
+  return cleaned
 }
 
 // Нормализованный разговор для модалки
 const normalizedConversation = computed(() => {
   const raw = selectedDialog.value?.conversation
   if (!raw || typeof raw !== 'string') return []
-
-  // Если это массив (JSON), обрабатываем как раньше
-  if (Array.isArray(raw)) {
-    return raw.map(m => ({
-      speaker: m.speaker ?? '',
-      message: m.message ?? '',
-      timestamp: m.timestamp ?? ''
-    }))
-  }
-
-  // Если это строка, пытаемся парсить как JSON
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        return parsed.map(m => ({
-          speaker: m.speaker ?? '',
-          message: m.message ?? '',
-          timestamp: m.timestamp ?? ''
-        }))
-      }
-    } catch (e) {
-      // Если не JSON, парсим как текстовый разговор
-      const parsedMessages = parseConversation(raw)
-      return parsedMessages
-    }
-  }
-
+  
+  // Просто возвращаем пустой массив, чтобы показывать "Полный контент"
   return []
 })
 
@@ -747,6 +655,7 @@ async function viewDialog(dialog) {
   dialogVisible.value = true
   dialogDetailsLoading.value = true
   selectedDialog.value = null
+  
   try {
     const id = dialog.dialog_id || dialog.id
     const response = await getDialogById(id)
@@ -935,33 +844,6 @@ async function loadDictionaries() {
 }
 </script>
 
-<style lang="scss" scoped>
-.table__empty-text {
-  text-align: center;
-  color: #909399;
-  padding: 20px;
-}
-
-:deep(.conversation-html) {
-  span {
-    display: inline-block;
-  }
-
-  p {
-    margin-bottom: 0.5rem;
-  }
-
-  pre {
-    background-color: #f5f5f5;
-    padding: 0.5rem;
-    border-radius: 0.25rem;
-    overflow-x: auto;
-  }
-}
-
-:deep(.whitespace-pre-wrap) {
-  span {
-    display: inline-block;
-  }
-}
+<style scoped>
+/* Базовые стили для страницы */
 </style>
