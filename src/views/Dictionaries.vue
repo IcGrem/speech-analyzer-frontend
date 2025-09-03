@@ -131,15 +131,17 @@
             <h4 class="font-medium text-gray-700 mb-3">
               Слова в словаре ({{ selectedDictionary.words.length }}):
             </h4>
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              <span 
-                v-for="word in selectedDictionary.words" 
-                :key="word"
-                class="px-3 py-2 bg-white border rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                :style="{ borderColor: selectedDictionary.color + '30' }"
-              >
-                {{ word }}
-              </span>
+            <div class="max-h-96 overflow-y-auto">
+              <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                <span 
+                  v-for="word in selectedDictionary.words" 
+                  :key="word"
+                  class="px-3 py-2 bg-white border rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  :style="{ borderColor: selectedDictionary.color + '30' }"
+                >
+                  {{ word }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
