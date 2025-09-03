@@ -77,11 +77,22 @@
                   </h4>
                   
                   <span 
-                    class="text-2xl font-bold"
+                    class="text-2xl font-bold mb-4 block"
                     :style="{ color: dictionary.color }"
                   >
                     {{ dictionary.dialogs_count }}
                   </span>
+                  
+                  <div class="w-full mt-4">
+                    <el-button 
+                      type="info" 
+                      size="small"
+                      class="w-full"
+                      @click.stop="showDictionaryDetails(dictionary)"
+                    >
+                      Подробнее
+                    </el-button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -97,7 +108,54 @@
           </div>
         </div>
       </div>
-  </PageWrapper>
+      
+      <!-- Модальное окно с деталями словаря -->
+      <el-dialog
+        v-model="dictionaryDetailsVisible"
+        :title="`Словарь: ${selectedDictionary?.description || ''}`"
+        width="60%"
+        :before-close="handleDictionaryModalClose"
+      >
+        <div v-if="selectedDictionary?.words" class="space-y-4">
+          <div class="flex items-center gap-3 mb-4">
+            <div 
+              class="w-6 h-6 rounded-full"
+              :style="{ backgroundColor: selectedDictionary.color }"
+            ></div>
+            <span class="text-lg font-medium text-gray-800">
+              {{ selectedDictionary.description }}
+            </span>
+          </div>
+          
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <h4 class="font-medium text-gray-700 mb-3">
+              Слова в словаре ({{ selectedDictionary.words.length }}):
+            </h4>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              <span 
+                v-for="word in selectedDictionary.words" 
+                :key="word"
+                class="px-3 py-2 bg-white border rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                :style="{ borderColor: selectedDictionary.color + '30' }"
+              >
+                {{ word }}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div v-else class="text-center py-8 text-gray-500">
+          <CustomIcons name="book" icon-class="w-16 h-16 mx-auto text-gray-300 mb-4" />
+          <p>Слова в словаре не найдены</p>
+        </div>
+        
+        <template #footer>
+          <div class="flex justify-end">
+            <el-button @click="handleDictionaryModalClose">Закрыть</el-button>
+          </div>
+        </template>
+      </el-dialog>
+    </PageWrapper>
 </template>
 
 <script setup>
@@ -110,6 +168,7 @@ import { useAuthStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import PageWrapper from '@/components/PageWrapper.vue'
 import CustomIcons from '@/components/icons/CustomIcons.vue'
+import { getAllDictionariesWithWords } from '@/api/dialogs'
 
 const router = useRouter()
 const { t } = useLocalization()
@@ -134,75 +193,89 @@ const dictionariesData = ref([
     "title": "slang",
     "description": "Сленг",
     "color": "#9370DB",
-    "dialogs_count": 2173
+    "dialogs_count": 2173,
+    "words": ["вот", "тип", "так", "просто", "ну", "блин", "короче", "кстати"]
   },
   {
     "id": "9d09e674-fd27-4983-8be5-a240f7d19366",
     "title": "diminutives",
     "description": "Уменьшительные",
     "color": "#87CEEB",
-    "dialogs_count": 228
+    "dialogs_count": 228,
+    "words": ["минутка", "столик", "стол", "зал", "ресторанчик"]
   },
   {
     "id": "220c092e-6396-4ca2-a40e-3b8d776a9679",
     "title": "blurriness",
     "description": "Размытость",
     "color": "#FFA500",
-    "dialogs_count": 164
+    "dialogs_count": 164,
+    "words": ["наверное", "возможно", "кажется", "вроде", "примерно"]
   },
   {
     "id": "31eb76d9-b026-4ef8-a92c-a10266af0532",
     "title": "negative",
     "description": "Негатив",
     "color": "#000000",
-    "dialogs_count": 21
+    "dialogs_count": 21,
+    "words": ["дурацкий", "жаловаться", "хрень", "плохо", "ужасно"]
   },
   {
     "id": "725df19f-7aae-4f08-815f-4481cc359d5d",
     "title": "apologies",
     "description": "Извинения",
     "color": "#B8B8B8",
-    "dialogs_count": 18
+    "dialogs_count": 18,
+    "words": ["прощения", "извините", "извиняюсь", "прошу прощения"]
   },
   {
     "id": "6599f8a2-3382-4f1a-9b02-13a4ce644394",
     "title": "NOT",
     "description": "Не",
     "color": "#FF6B6B",
-    "dialogs_count": 16
+    "dialogs_count": 16,
+    "words": ["нет", "не", "ни", "никак", "ничего"]
   },
   {
     "id": "12c2d4c5-77f7-48ff-a2b6-6b0a99985b90",
     "title": "insults",
     "description": "Оскорбления",
     "color": "#F0E68C",
-    "dialogs_count": 11
+    "dialogs_count": 11,
+    "words": ["дурак", "идиот", "тупой", "глупый"]
   },
   {
     "id": "c6f90f13-9e45-48a7-936c-18aa48fc86a3",
     "title": "obscene",
     "description": "Нецензурные",
     "color": "#8B0000",
-    "dialogs_count": 9
+    "dialogs_count": 9,
+    "words": ["мат", "ругательство", "проклятие"]
   },
   {
     "id": "5d2c5ab6-63c4-419f-8230-0e95f15e24bc",
     "title": "expectations",
     "description": "Ожидания",
     "color": "#800000",
-    "dialogs_count": 9
+    "dialogs_count": 9,
+    "words": ["надеюсь", "ожидаю", "планирую", "хочу"]
   },
   {
     "id": "ce4fa362-ef8b-4a03-b3a4-80a7bf15782f",
     "title": "justifiable",
     "description": "Оправдательные",
     "color": "#2F2F2F",
-    "dialogs_count": 6
+    "dialogs_count": 6,
+    "words": ["объясню", "поясню", "уточню", "дополню"]
   }
 ])
 
 // Состояние загрузки
 const loading = ref(false)
+
+// Состояние для модального окна деталей словаря
+const dictionaryDetailsVisible = ref(false)
+const selectedDictionary = ref(null)
 
 // Вычисляемые свойства для словарей
 const dictionariesList = computed(() => dictionariesData.value)
@@ -294,7 +367,6 @@ async function loadDictionaries() {
     const currentFilters = dialogsStore.filters
     
     // Вызываем API для получения словарей с фильтрами
-    
     const response = await fetchDialogsByDictionaries({
       start_date: currentFilters.start_date,
       end_date: currentFilters.end_date,
@@ -304,8 +376,25 @@ async function loadDictionaries() {
     // Обновляем данные словарей
     if (response && response.data) {
       dictionariesData.value = response.data
-    } else {
     }
+    
+    // Дополнительно загружаем словари со словами для кнопки "Подробнее"
+    try {
+      const wordsResponse = await getAllDictionariesWithWords()
+      if (wordsResponse && wordsResponse.data) {
+        // Обновляем существующие словари, добавляя к ним слова
+        dictionariesData.value = dictionariesData.value.map(dict => {
+          const dictWithWords = wordsResponse.data.find(dw => dw.id === dict.id);
+          return {
+            ...dict,
+            words: dictWithWords?.words || []
+          };
+        });
+      }
+    } catch (wordsError) {
+      console.error('Ошибка при загрузке слов словарей:', wordsError)
+    }
+    
   } catch (error) {
     console.error('Ошибка при загрузке словарей:', error)
   } finally {
@@ -325,6 +414,18 @@ function handleDictionaryClick(dictionary) {
 
   // Переходим на страницу pie с фильтрацией по словарю
   router.push(routeParams)
+}
+
+// Показать детали словаря
+function showDictionaryDetails(dictionary) {
+  selectedDictionary.value = dictionary
+  dictionaryDetailsVisible.value = true
+}
+
+// Закрыть модальное окно деталей словаря
+function handleDictionaryModalClose() {
+  dictionaryDetailsVisible.value = false
+  selectedDictionary.value = null
 }
 
 // Обработчик эффектов наведения для карточек

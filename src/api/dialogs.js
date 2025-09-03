@@ -83,7 +83,6 @@ export const getDialogById = (dialog_id) => {
 // Новое: получение диалогов по словарям
 export const getDialogsByDictionaries = (params = {}) => {
   const {
-    organization_id,
     employee_ids,
     start_date,
     end_date,
@@ -103,4 +102,9 @@ export const getDialogsByDictionaries = (params = {}) => {
     : `/dialogs/get-dialogs-by-dictionaries`;
 
   return api.get(url);
+};
+
+// Новое: получение всех словарей со словами
+export const getAllDictionariesWithWords = () => {
+  return api.get(`/dialogs/get-all-dictionaries-with-words`);
 };
