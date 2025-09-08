@@ -108,3 +108,7 @@ export const getDialogsByDictionaries = (params = {}) => {
 export const getAllDictionariesWithWords = () => {
   return api.get(`/dialogs/get-all-dictionaries-with-words`);
 };
+// Новое: получение всех словарей для селекта (без фильтров)
+export const getAllDictionaries = () => {
+  return api.get(`/dialogs/get-all-dictionaries-with-words`);
+};

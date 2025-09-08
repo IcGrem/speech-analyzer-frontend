@@ -316,32 +316,14 @@ const normalizedEmployees = computed(() => {
   })
 })
 
-// Обработчики событий
+// Обработчики событий - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ФИЛЬТРЫ
 function handleDateRangeChange() {
-  // Обновляем фильтры при изменении даты
-  if (filters.value.dateRange && Array.isArray(filters.value.dateRange) && filters.value.dateRange.length === 2) {
-    dialogsStore.updateFilters({
-      start_date: filters.value.dateRange[0],
-      end_date: filters.value.dateRange[1]
-    })
-  } else {
-    dialogsStore.updateFilters({
-      start_date: null,
-      end_date: null
-    })
-  }
-  
-  // Загружаем обновленные данные словарей
+  // Загружаем обновленные данные словарей с локальными фильтрами
   loadDictionaries()
 }
 
 function handleFilterChange() {
-  // Обновляем фильтры при изменении сотрудников
-  dialogsStore.updateFilters({
-    employee_ids: filters.value.employee_ids
-  })
-  
-  // Загружаем обновленные данные словарей
+  // Загружаем обновленные данные словарей с локальными фильтрами
   loadDictionaries()
 }
 
@@ -350,30 +332,25 @@ function clearFilters() {
     dateRange: null,
     employee_ids: [],
   }
-  dialogsStore.updateFilters({
-    start_date: null,
-    end_date: null,
-    employee_ids: []
-  })
   
   // Загружаем данные без фильтров
   loadDictionaries()
 }
 
-// Функция загрузки словарей с учетом фильтров
+// Функция загрузки словарей с учетом ЛОКАЛЬНЫХ фильтров
 async function loadDictionaries() {
   try {
     loading.value = true
     
-    // Получаем текущие фильтры
-    const currentFilters = dialogsStore.filters
+    // Используем локальные фильтры вместо store фильтров
+    const localFilters = {
+      start_date: filters.value.dateRange?.[0] || null,
+      end_date: filters.value.dateRange?.[1] || null,
+      employee_ids: filters.value.employee_ids || []
+    }
     
-    // Вызываем API для получения словарей с фильтрами
-    const response = await fetchDialogsByDictionaries({
-      start_date: currentFilters.start_date,
-      end_date: currentFilters.end_date,
-      employee_ids: currentFilters.employee_ids
-    })
+    // Вызываем API для получения словарей с локальными фильтрами
+    const response = await fetchDialogsByDictionaries(localFilters)
     
     // Обновляем данные словарей
     if (response && response.data) {
@@ -404,13 +381,24 @@ async function loadDictionaries() {
   }
 }
 
-// Обработчик клика по карточке словаря
+// Обработчик клика по карточке словаря - ПЕРЕДАЕМ ТЕКУЩИЕ ФИЛЬТРЫ
 function handleDictionaryClick(dictionary) {
+  // Передаем текущие локальные фильтры при переходе на PieChart
+  const currentFilters = {
+    start_date: filters.value.dateRange?.[0] || null,
+    end_date: filters.value.dateRange?.[1] || null,
+    employee_ids: filters.value.employee_ids || []
+  }
+  
   const routeParams = { 
     name: 'Pie', 
     query: { 
       dictionary_id: dictionary.id,
-      dictionary_name: dictionary.description 
+      dictionary_name: dictionary.description,
+      // Передаем фильтры через URL
+      ...(currentFilters.start_date && { start_date: currentFilters.start_date }),
+      ...(currentFilters.end_date && { end_date: currentFilters.end_date }),
+      ...(currentFilters.employee_ids.length > 0 && { employee_ids: currentFilters.employee_ids.join(',') })
     } 
   }
 
@@ -473,4 +461,4 @@ onMounted(fetchData)
 
 <style scoped>
 /* Дополнительные стили для страницы */
-</style> 
+</style>

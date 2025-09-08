@@ -311,7 +311,7 @@ import { useEmployeeStore } from '@/store/employees'
 import { useAuthStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import { formatDateTime as formatDateTimeUtil } from '@/utils'
-import { getDialogById } from '@/api/dialogs'
+import { getDialogById, getAllDictionaries } from '@/api/dialogs'
 
 const route = useRoute()
 const router = useRouter()
@@ -772,15 +772,29 @@ watch(dictionaryFilter, async (newFilter) => {
 }, { immediate: true })
 
 // Загрузка данных при монтировании
-onMounted(() => {
-  console.log('onMounted called')
+onMounted(async () => {
+  console.log("onMounted called")
   
+  
+  // Загружаем сотрудников если их нет
+  if (!employeeStore.employees || employeeStore.employees.length === 0) {
+    await employeeStore.fetchEmployees()
+  }
   // Загружаем словари для селекта
   loadDictionaries()
   
   // Получаем параметры из URL
   const routeQuery = route.query
-  console.log('route.query:', routeQuery)
+  console.log("route.query:", routeQuery)
+  
+  // Применяем фильтры из URL если они переданы со страницы словарей
+  if (routeQuery.start_date) {
+    filters.value.dateRange = [routeQuery.start_date, routeQuery.end_date]
+  }
+  
+  if (routeQuery.employee_ids) {
+    filters.value.employee_ids = routeQuery.employee_ids.split(",")
+  }
   
   if (routeQuery.dictionary_id && routeQuery.dictionary_name) {
     // Устанавливаем фильтр по словарю
@@ -789,44 +803,78 @@ onMounted(() => {
       name: routeQuery.dictionary_name
     }
     
-    console.log('dictionaryFilter.value:', dictionaryFilter.value)
+    console.log("dictionaryFilter.value:", dictionaryFilter.value)
     
     // Применяем фильтр по словарю
-    console.log('onMounted - Applying dictionary filter:', dictionaryFilter.value.id)
+    console.log("onMounted - Applying dictionary filter:", dictionaryFilter.value.id)
     
-    // Автоматически устанавливаем тип диалога "Менеджер → Клиент" 
+    // Автоматически устанавливаем тип диалога "Менеджер → Клиент"
     // только если переходим со страницы словарей
-    filters.value.conversation_type = 'm2c'
+    filters.value.conversation_type = "m2c"
     
-    // Обновляем store фильтры
+    // Обновляем store фильтры с переданными фильтрами
     updateStoreFilters({
+      start_date: filters.value.dateRange?.[0] || null,
+      end_date: filters.value.dateRange?.[1] || null,
+      employee_ids: filters.value.employee_ids || [],
       dictionary_id: dictionaryFilter.value.id,
-      conversation_type: 'm2c'
+      conversation_type: "m2c"
     })
     
     // Обновляем URL параметры
     router.push({
       query: {
         ...routeQuery,
-        conversation_type: 'm2c'
+        conversation_type: "m2c"
       }
     })
     
     // Загружаем диалоги с новыми фильтрами
-    loadDialogs()
   } else {
-    // Если просто заходим на страницу без параметров словаря,
-    // то фильтр по типу диалога должен быть пустым
-    filters.value.conversation_type = null
-    
-    // Обновляем store фильтры (без conversation_type)
-    updateStoreFilters({
-      dictionary_id: null,
-      conversation_type: null
-    })
-    
-    // Загружаем диалоги без фильтра по типу диалога
-    loadDialogs()
+    // Обрабатываем параметры employee_ids и дат из URL
+    if (routeQuery.employee_ids || routeQuery.start_date) {
+      console.log("Processing employee_ids and date filters from URL - setting conversation_type to m2c")
+      
+      // Обновляем локальные фильтры
+      filters.value.dateRange = routeQuery.start_date && routeQuery.end_date 
+        ? [routeQuery.start_date, routeQuery.end_date] 
+        : null
+      filters.value.employee_ids = routeQuery.employee_ids ? routeQuery.employee_ids.split(",") : []
+      filters.value.conversation_type = "m2c"
+      
+      console.log("Updated local filters:", {
+        dateRange: filters.value.dateRange,
+        employee_ids: filters.value.employee_ids,
+        conversation_type: filters.value.conversation_type
+      })
+      
+      // Обновляем store фильтры с переданными параметрами
+      updateStoreFilters({
+        start_date: routeQuery.start_date || null,
+        end_date: routeQuery.end_date || null,
+        employee_ids: routeQuery.employee_ids ? routeQuery.employee_ids.split(",") : [],
+        dictionary_id: null,
+        conversation_type: "m2c"
+      })
+      
+      console.log("Updated store filters, loading dialogs...")
+      
+      // Загружаем диалоги с новыми фильтрами
+      loadDialogs()
+    } else {
+      // Если просто заходим на страницу без параметров,
+      // то фильтр по типу диалога должен быть пустым
+      filters.value.conversation_type = null
+      
+      // Обновляем store фильтры (без conversation_type)
+      updateStoreFilters({
+        dictionary_id: null,
+        conversation_type: null
+      })
+      
+      // Загружаем диалоги без фильтра по типу диалога
+      loadDialogs()
+    }
   }
 })
 
@@ -834,7 +882,7 @@ onMounted(() => {
 async function loadDictionaries() {
   try {
     // Загружаем словари из store
-    const response = await dialogsStore.fetchDialogsByDictionaries()
+    const response = await getAllDictionaries()
     if (response && response.data) {
       dictionariesList.value = response.data
     }

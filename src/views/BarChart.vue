@@ -15,11 +15,8 @@
         <el-col :span="6">
           <el-select
             v-model="employee"
-            placeholder="Все сотрудники"
+            placeholder="Выберите сотрудника"
             @change="changeEmployee"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
             :loading="employeesLoading"
             :disabled="employeesError"
           >
@@ -96,19 +93,22 @@
 import { onMounted, computed, ref } from 'vue'
 import { Line } from 'vue-chartjs'
 import { Chart, registerables } from 'chart.js'
+import annotationPlugin from 'chartjs-plugin-annotation'
 import { useDialogsStore } from '@/store/dialogs'
 import { storeToRefs } from 'pinia'
 import LoadingIndicator from '@/components/LoadingIndicator.vue'
 import { ElMessage } from 'element-plus'
 import { useEmployeeStore } from '@/store/employees'
 import { useAuthStore } from '@/store/auth'
+import { useRouter } from 'vue-router'
 
-Chart.register(...registerables)
+Chart.register(...registerables, annotationPlugin)
 
 // Stores
 const employeeStore = useEmployeeStore()
 const authStore = useAuthStore()
 const dialogsStore = useDialogsStore()
+const router = useRouter()
 
 // Store refs
 const { error: employeesError, loading: employeesLoading, employees: employeesRef } = storeToRefs(employeeStore)
@@ -179,15 +179,32 @@ const chartOptions = computed(() => ({
       cornerRadius: 4,
       padding: 12,
       callbacks: {
-        label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`
+        label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`,
+        afterLabel: () => 'Кликните для анализа диалогов'
       }
     },
     legend: {
-      display: true,
+      display: false,
       position: 'bottom',
       labels: { usePointStyle: true, padding: 20, font: { size: 12 } },
       align: 'start',
       fullWidth: true
+    },
+    annotation: {
+      annotations: {
+        line1: {
+          type: 'line',
+          yMin: 2.1,
+          yMax: 2.1,
+          borderColor: 'red',
+          borderWidth: 2,
+          label: {
+            content: 'Целевое значение: 2',
+            enabled: true,
+            position: 'end'
+          }
+        }
+      }
     }
   },
   elements: {
@@ -196,7 +213,9 @@ const chartOptions = computed(() => ({
       hoverRadius: 6, 
       borderWidth: 2, 
       backgroundColor: '#fff',
-      display: 'auto'
+      display: 'auto',
+      hoverBackgroundColor: '#409EFF',
+      cursor: 'pointer'
     },
     line: { 
       borderWidth: 2, 
@@ -225,7 +244,51 @@ const chartOptions = computed(() => ({
       }
     }
   },
-  interaction: { mode: 'nearest', axis: 'x', intersect: false }
+  interaction: { mode: 'nearest', axis: 'x', intersect: false },
+  onClick: (event, elements) => {
+    if (elements.length > 0) {
+      const element = elements[0]
+      const datasetIndex = element.datasetIndex
+      const dataIndex = element.index
+      
+      // Получаем данные о сотруднике из dataset
+      const dataset = lineData.value.datasets[datasetIndex]
+      
+      // Пытаемся получить ID сотрудника из различных источников
+      let employeeId = dataset.employeeId || dataset.employee_id || dataset.id
+      
+      // Если ID не найден, используем label как fallback
+      if (!employeeId) {
+        employeeId = dataset.label
+      }
+      
+      
+      // Получаем дату из конкретной точки на диаграмме
+      const originalMetrics = employeeMetrics.value
+      // Находим соответствующий индекс в оригинальных данных
+      const filteredLabel = lineData.value.labels[dataIndex]
+      const originalIndex = originalMetrics && originalMetrics.labels ? 
+        originalMetrics.labels.findIndex(label => label === filteredLabel) : dataIndex
+      const originalDate = originalMetrics && originalMetrics.labels && originalIndex >= 0 
+        ? originalMetrics.labels[originalIndex] 
+        : filteredLabel
+      const date = originalDate
+      
+      console.log('Clicked data:', { 
+        employeeId, 
+        date, 
+        dataset, 
+        originalDate, 
+        dataIndex,
+        filteredLabel,
+        originalIndex,
+        originalMetricsLabels: originalMetrics?.labels
+      })
+      
+      // Переходим на страницу анализа диалогов
+      navigateToDialogAnalysis(employeeId, date)
+    }
+  }
 }))
 
 // Transform API payload to chart data
@@ -235,7 +298,8 @@ const lineData = computed(() => {
     return { labels: [], datasets: [] }
   }
 
-
+  // Добавьте в начало функции lineData для отладки
+  console.log('Employee metrics data:', metrics)
 
   const parseLabelDate = (label) => {
     if (!label || typeof label !== 'string') return null
@@ -286,6 +350,7 @@ const lineData = computed(() => {
   const enrichedDatasets = metrics.datasets.map(dataset => ({
     ...dataset,
     data: Array.isArray(dataset.data) ? indicesToKeep.map(i => dataset.data[i]) : dataset.data,
+    employeeId: dataset.employeeId || dataset.label, // Добавляем ID сотрудника
     borderColor: dataset.backgroundColor || '#409EFF',
     backgroundColor: 'transparent',
     tension: 0.1,
@@ -316,8 +381,8 @@ const loadEmployeeMetrics = async () => {
       start_date: dateRange.value[0].toISOString(),
       end_date: dateRange.value[1].toISOString()
     }
-    if (employee.value && Array.isArray(employee.value) && employee.value.length > 0) {
-      params.employee_ids = employee.value
+    if (employee.value) {
+      params.employee_ids = [employee.value] // Обертываем в массив для API
     }
     await fetchEmployeeMetrics(params)
   } catch (error) {
@@ -334,14 +399,8 @@ const refreshData = async () => {
   }
 }
 
-const changeEmployee = (employeeIds) => {
-  if (employeeIds === 'all' || employeeIds === null) {
-    employee.value = null
-  } else {
-    const filteredIds = Array.isArray(employeeIds) ? employeeIds.filter(id => id !== null && id !== undefined) : employeeIds
-    employee.value = filteredIds.length > 0 ? filteredIds : null
-    if (Array.isArray(employee.value) && employee.value.length === 0) employee.value = null
-  }
+const changeEmployee = (employeeId) => {
+  employee.value = employeeId
   loadEmployeeMetrics()
 }
 
@@ -373,6 +432,123 @@ const selectAllEmployees = () => {
   loadEmployeeMetrics()
 }
 
+// Функция навигации на страницу анализа диалогов
+const navigateToDialogAnalysis = (employeeId, date) => {
+  // Проверяем, что у нас есть валидные данные
+  if (!employeeId || !date) {
+    ElMessage.warning('Не удалось определить данные для перехода')
+    return
+  }
+  
+  // Если employeeId это имя, а не ID, пытаемся найти ID по имени
+  let actualEmployeeId = employeeId
+  
+  // Проверяем, является ли employeeId именем (содержит пробелы или кириллицу)
+  if (typeof employeeId === 'string' && (employeeId.includes(' ') || /[а-яё]/i.test(employeeId))) {
+    // Ищем сотрудника по имени в списке сотрудников
+    const foundEmployee = employees.value.find(emp => {
+      const displayName = getEmployeeDisplayName(emp)
+      return displayName === employeeId
+    })
+    
+    if (foundEmployee) {
+      actualEmployeeId = foundEmployee.id
+    } else {
+      ElMessage.warning(`Не удалось найти ID сотрудника: ${employeeId}`)
+      return
+    }
+  }
+  
+  console.log("Raw date from chart:", date)
+  console.log("Date type:", typeof date)
+  console.log("Formatted date:", formatDateForAPI(date))
+  const formattedDate = formatDateForAPI(date)
+  if (!formattedDate) {
+    ElMessage.warning('Не удалось обработать дату')
+    return
+  }
+  
+  // Формируем параметры для фильтрации
+  const queryParams = {
+    employee_ids: actualEmployeeId,
+    start_date: formattedDate,
+    end_date: addOneDay(formattedDate) // Добавляем 1 день к конечной дате
+  }
+  
+  console.log("Navigating with params:", queryParams)
+  
+  // Переходим на страницу анализа диалогов
+  router.push({
+    path: '/pie',
+    query: queryParams
+  })
+}
+
+// Форматирование даты для API
+const formatDateForAPI = (dateString) => {
+  if (!dateString) return null
+  
+  console.log("formatDateForAPI input:", dateString)
+  
+  // Используем ту же логику парсинга, что и в parseLabelDate
+  const parseLabelDate = (label) => {
+    if (!label || typeof label !== 'string') return null
+    
+    console.log("parseLabelDate input:", label)
+    
+    // Для формата "DD-MM-YYYY"
+    const hyphenMatch = label.match(/^([0-3]?\d)-([0-1]?\d)-(\d{4})$/)
+    if (hyphenMatch) {
+      const day = parseInt(hyphenMatch[1], 10)
+      const month = parseInt(hyphenMatch[2], 10) - 1 // Месяцы в JS начинаются с 0
+      const year = parseInt(hyphenMatch[3], 10)
+      console.log("Parsed values:", { day, month, year })
+      const d = new Date(year, month, day)
+      console.log("Created date:", d)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    
+    // Для других форматов
+    const isoDate = new Date(label)
+    if (!Number.isNaN(isoDate.getTime())) return isoDate
+    
+    const dotMatch = label.match(/^([0-3]?\d)[.](0?\d|1[0-2])[.](\d{4})$/)
+    if (dotMatch) {
+      const d = new Date(Number(dotMatch[3]), Number(dotMatch[2]) - 1, Number(dotMatch[1]))
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    
+    const slashMatch = label.match(/^([0-3]?\d)[\/](0?\d|1[0-2])[\/](\d{4})$/)
+    if (slashMatch) {
+      const d = new Date(Number(slashMatch[3]), Number(slashMatch[2]) - 1, Number(slashMatch[1]))
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    
+    return null
+  }
+  
+  const parsedDate = parseLabelDate(dateString)
+  if (!parsedDate) return null
+  
+  // Используем локальную дату вместо UTC
+  const year = parsedDate.getFullYear()
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+  const day = String(parsedDate.getDate()).padStart(2, '0')
+  const result = `${year}-${month}-${day}`
+  
+  console.log("formatDateForAPI result:", result)
+  return result
+}
+
+// Функция для добавления одного дня к дате
+const addOneDay = (dateString) => {
+  if (!dateString) return null
+  
+  const date = new Date(dateString)
+  date.setDate(date.getDate() + 1)
+  return date.toISOString().split('T')[0]
+}
+
 // Lifecycle
 onMounted(async () => {
   try {
@@ -380,6 +556,11 @@ onMounted(async () => {
     const raw = employeesRef?.value
     const normalizedEmployees = Array.isArray(raw) ? raw : (raw?.data || [])
     employees.value = normalizedEmployees
+
+    // Устанавливаем первого сотрудника по умолчанию
+    if (employees.value.length > 0) {
+      employee.value = employees.value[0].id
+    }
 
     metric.value = metrics.value[0].value
     dateRange.value = [
