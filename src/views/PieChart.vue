@@ -1,6 +1,6 @@
 <template>
   <PageWrapper :title="pageTitle">
-    <div class="mb-6 p-4 bg-white rounded-lg shadow-sm">
+    <FilterCard class="mb-6">
       <el-form :model="filters">
         <el-row :gutter="20">
           <el-col :span="8">
@@ -101,7 +101,7 @@
           </el-col>
         </el-row>
       </el-form>
-    </div>
+    </FilterCard>
 
     <el-row>
       <el-col :span="24">
@@ -195,13 +195,15 @@
                 </el-tooltip>
               </span>
               <span v-else-if="item.property === 'actions'">
-                <el-button
-                  type="primary"
-                  size="small"
-                  @click="viewDialog(row)"
-                >
-                  {{ $t('common.view') }}
-                </el-button>
+                <div class="w-full flex justify-end">
+                  <el-button
+                    type="primary"
+                    size="small"
+                    @click="viewDialog(row)"
+                  >
+                    {{ $t('common.view') }}
+                  </el-button>
+                </div>
               </span>
               <span v-else>
                 {{ row[item.property] }}
@@ -303,8 +305,10 @@
 
 <script setup>
 import PageWrapper from '@/components/PageWrapper.vue'
+import FilterCard from '@/components/FilterCard.vue'
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave } from 'vue-router'
 import { useLocalization } from '@/composables/useI18n'
 import { useDialogsStore } from '@/store/dialogs'
 import { useEmployeeStore } from '@/store/employees'
@@ -394,9 +398,6 @@ const dictionaryFilter = computed(() => {
 
 // Обновляем заголовок страницы если есть фильтр по словарю
 const pageTitle = computed(() => {
-  if (dictionaryFilter.value.id) {
-    return `${t('pages.pieChart.title')} - ${dictionaryFilter.value.name}`
-  }
   return t('pages.pieChart.title')
 })
 
@@ -500,7 +501,7 @@ const tableHeader = computed(() => [
   { property: 'employee_name', label: t('pages.pieChart.employee'), width: '250', sortable: 'custom'},
   { property: 'conversation_type', label: t('pages.pieChart.conversationType'), sortable: false, width: '190' },
   { property: 'overall_score', label: t('pages.pieChart.metrics'), sortable: 'custom', width: '170', align: 'center' },
-  { property: 'dictionaries', label: t('pages.pieChart.dictionary'), sortable: false, width: '200', align: 'center' },
+  { property: 'dictionaries', label: t('pages.pieChart.dictionary'), sortable: false, align: 'center' },
   { property: 'actions', label: t('pages.pieChart.link'), width: '120', align: 'right', sortable: false },
 ])
 
@@ -770,6 +771,30 @@ watch(dictionaryFilter, async (newFilter) => {
     await fetchDialogs()
   }
 }, { immediate: true })
+
+// Сброс фильтров при уходе со страницы
+onBeforeRouteLeave(() => {
+  // Локальные фильтры
+  filters.value = {
+    dateRange: null,
+    employee_ids: [],
+    dictionary_id: null,
+    conversation_type: null,
+    sort_by: 'recording_start_date',
+    sort_order: 'desc'
+  }
+
+  // Фильтры в store
+  updateStoreFilters({
+    start_date: null,
+    end_date: null,
+    employee_ids: [],
+    dictionary_id: null,
+    conversation_type: null,
+    sort_by: 'recording_start_date',
+    sort_order: 'desc'
+  })
+})
 
 // Загрузка данных при монтировании
 onMounted(async () => {

@@ -1,7 +1,7 @@
 <template>
-  <PageWrapper title="Динамика метрики по сотрудникам">
-    <div class="">
-      <el-row :gutter="10" class="py-4">
+  <PageWrapper title="Метрики по сотрудникам">
+    <FilterCard class="mb-4">
+      <el-row :gutter="10">
         <el-col :span="6">
           <el-select v-model="metric" placeholder="Метрики" @change="onMetricChange">
             <el-option
@@ -52,7 +52,7 @@
           </el-button>
         </el-col>
       </el-row>
-    </div>
+    </FilterCard>
     <el-row class="pb-8" :gutter="20">
       <el-col :span="24">
         <div v-if="loading" class="w-full h-[600px] flex justify-center items-center">
@@ -101,6 +101,7 @@ import { ElMessage } from 'element-plus'
 import { useEmployeeStore } from '@/store/employees'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'vue-router'
+import FilterCard from '@/components/FilterCard.vue'
 
 Chart.register(...registerables, annotationPlugin)
 
@@ -162,6 +163,14 @@ const yMax = computed(() => {
 })
 const yMaxRounded = computed(() => Math.ceil((yMax.value + Number.EPSILON) * 10) / 10)
 
+// Добавляем небольшой запас сверху, чтобы линия 2.1 не прилипала к границе
+const yMaxPadded = computed(() => {
+  const base = yMaxRounded.value
+  if (!Number.isFinite(base)) return 5
+  // Гарантируем минимум 2.3, либо добавляем небольшой запас
+  return Math.max(base + 0.1, 2.3)
+})
+
 // Chart options
 const chartOptions = computed(() => ({
   responsive: true,
@@ -178,6 +187,11 @@ const chartOptions = computed(() => ({
       borderWidth: 2,
       cornerRadius: 4,
       padding: 12,
+      position: 'nearest',
+      yAlign: 'bottom',
+      xAlign: 'center',
+      caretPadding: 8,
+      displayColors: false,
       callbacks: {
         label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`,
         afterLabel: () => 'Кликните для анализа диалогов'
@@ -199,7 +213,7 @@ const chartOptions = computed(() => ({
           borderColor: 'red',
           borderWidth: 2,
           label: {
-            content: 'Целевое значение: 2',
+            content: 'Целевое значение: 2.1',
             enabled: true,
             position: 'end'
           }
@@ -235,7 +249,8 @@ const chartOptions = computed(() => ({
     },
     y: {
       beginAtZero: false,
-      max: yMaxRounded.value,
+      suggestedMin: 2.0,
+      max: yMaxPadded.value,
       grid: { color: 'rgba(0, 0, 0, 0.1)', lineWidth: 1 },
       ticks: { 
         stepSize: 0.1, 
@@ -245,6 +260,10 @@ const chartOptions = computed(() => ({
     }
   },
   interaction: { mode: 'nearest', axis: 'x', intersect: false },
+  onHover: (event, elements, chart) => {
+    const canvas = chart?.canvas
+    if (canvas) canvas.style.cursor = elements?.length ? 'pointer' : 'default'
+  },
   onClick: (event, elements) => {
     if (elements.length > 0) {
       const element = elements[0]

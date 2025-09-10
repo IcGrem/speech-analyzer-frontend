@@ -1,8 +1,8 @@
 <template>
   <PageWrapper title="Динамика метрик по дням">
     
-    <div class="">
-      <el-row :gutter="10" class="py-4">
+    <FilterCard class="mb-4">
+      <el-row :gutter="10">
         <el-col :span="8">
           <el-select
             v-model="selectedMetrics"
@@ -45,7 +45,7 @@
           </el-button>
         </el-col>
       </el-row>
-    </div>
+    </FilterCard>
 
     <el-row class="pb-8" :gutter="20">
       <el-col :span="24">
@@ -75,6 +75,7 @@ import { onMounted, computed, ref, watch } from 'vue'
 import { Line } from 'vue-chartjs'
 import LoadingIndicator from '@/components/LoadingIndicator.vue'
 import { ElMessage } from 'element-plus'
+import FilterCard from '@/components/FilterCard.vue'
 
 import { useOrganizationMetricsStore } from '@/store/organizationMetrics'
 import { useAuthStore } from '@/store/auth'

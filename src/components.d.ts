@@ -45,6 +45,7 @@ declare module 'vue' {
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTag: typeof import('element-plus/es')['ElTag']
     ElTooltip: typeof import('element-plus/es')['ElTooltip']
+    FilterCard: typeof import('./components/FilterCard.vue')['default']
     LanguageSwitcher: typeof import('./components/LanguageSwitcher.vue')['default']
     LoadingIndicator: typeof import('./components/LoadingIndicator.vue')['default']
     MainMenu: typeof import('./components/MainMenu.vue')['default']

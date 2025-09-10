@@ -69,8 +69,8 @@ export const getEmployeeAverageMetrics = (params) => {
 
   const qs = queryParams.toString();
   const url = qs.length > 0
-    ? `/dialogs/get-employee-average-metrics/${organization_id}?${qs}`
-    : `/dialogs/get-employee-average-metrics/${organization_id}`;
+    ? `/dialogs/get-dialog-counts-by-dictionaries/${organization_id}?${qs}`
+    : `/dialogs/get-dialog-counts-by-dictionaries/${organization_id}`;
 
   return api.get(url);
 };

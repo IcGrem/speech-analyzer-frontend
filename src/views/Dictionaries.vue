@@ -2,8 +2,7 @@
   <PageWrapper title="Словари">
     <div class="p-6">
         <!-- Фильтры -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h3 class="text-lg font-medium text-gray-900 mb-4">Фильтры</h3>
+        <FilterCard class="mb-6">
           <el-form :model="filters">
             <el-row :gutter="20">
               <el-col :span="8">
@@ -52,12 +51,12 @@
               </el-col>
             </el-row>
           </el-form>
-        </div>
+        </FilterCard>
 
         <!-- Карточки словарей -->
         <div>
           <div>
-            <div v-loading="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div v-loading="loading" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
               <div
                 v-for="dictionary in dictionariesList"
                 :key="dictionary.id"
@@ -72,7 +71,7 @@
                 @click="handleDictionaryClick(dictionary)"
               >
                 <div class="text-center">
-                  <h4 class="text-2xl font-medium text-gray-500 mb-4">
+                  <h4 class="text-2xl font-medium text-gray-500 mb-4 leading-tight break-words whitespace-normal" :style="{ overflowWrap: 'anywhere', wordBreak: 'break-word' }">
                     {{ dictionary.description }}
                   </h4>
                   
@@ -170,6 +169,7 @@ import { useAuthStore } from '@/store/auth'
 import { storeToRefs } from 'pinia'
 import PageWrapper from '@/components/PageWrapper.vue'
 import CustomIcons from '@/components/icons/CustomIcons.vue'
+import FilterCard from '@/components/FilterCard.vue'
 import { getAllDictionariesWithWords } from '@/api/dialogs'
 
 const router = useRouter()

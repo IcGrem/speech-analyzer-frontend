@@ -43,12 +43,12 @@ const menu = [
     customIcon: 'dashboard'
   },
   {
-    name: 'Динамика по сотрудникам',
+    name: 'Метрики по сотрудникам',
     path: '/bar',
     customIcon: 'chart'
   },
   {
-    name: 'Анализ по диалогам',
+    name: 'Словари по сотрудникам',
     path: '/line',
     customIcon: 'calendar'
   },

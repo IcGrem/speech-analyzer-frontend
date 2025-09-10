@@ -99,6 +99,9 @@ const chartOptions = {
       display: false,
       text: '',
     },
+    datalabels: {
+      display: false
+    }
   },
   scales: {
     y: {

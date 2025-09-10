@@ -81,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
 import { ElMessageBox } from 'element-plus'
@@ -98,6 +98,24 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const isCollapsed = ref(false)
+const COLLAPSE_BREAKPOINT = 1280
+
+// Автосворачивание при маленькой ширине окна (без сохранения в localStorage)
+const applyResponsiveCollapse = () => {
+  if (typeof window === 'undefined') return
+  const width = window.innerWidth || 0
+  if (width <= COLLAPSE_BREAKPOINT) {
+    isCollapsed.value = true
+  } else {
+    // Восстанавливаем пользовательское состояние при ширине > breakpoint
+    const savedState = localStorage.getItem('sidebarCollapsed')
+    if (savedState !== null) {
+      try { isCollapsed.value = JSON.parse(savedState) } catch { isCollapsed.value = false }
+    } else {
+      isCollapsed.value = false
+    }
+  }
+}
 
 // Загружаем состояние из localStorage при монтировании
 onMounted(() => {
@@ -108,6 +126,18 @@ onMounted(() => {
     } catch (error) {
       isCollapsed.value = false
     }
+  }
+
+  // Применяем респонсив-логику и подписываемся на ресайз
+  applyResponsiveCollapse()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', applyResponsiveCollapse)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', applyResponsiveCollapse)
   }
 })
 
